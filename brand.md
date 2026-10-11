@@ -10,3 +10,4 @@ The existing logo and site.css define the interface. Keep the warm neutral palet
 - Preserve the supplied Reel Follow-up logo and accessible focus styles.
 
 Accessible focus: #3e8428 in light mode, #8fd973 in dark mode. Form errors: #b42318 in light mode, #ffb4ab in dark mode.
+Form borders: #817b6e in light mode and #939589 in dark mode. Placeholder text uses the secondary text token.
