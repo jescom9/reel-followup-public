@@ -99,4 +99,3 @@ class Profiles:
         private_write(folder / '.env', '\n'.join(f'{key}={value}' for key, value in values.items()) + '\n')
         private_write(folder / 'config.json', json.dumps(config))
         return identifier
-
