@@ -1,3 +1,4 @@
+const {serviceConfig}=require('../../lib/pi-service');
 const crypto = require('node:crypto');
 const { SCOPES, config, mac, html, stateCookie } = require('../../lib/instagram-oauth');
 
@@ -7,7 +8,7 @@ module.exports = function login(req, res) {
     return res.status(405).send('Method not allowed');
   }
   let cfg;
-  try { cfg = config(); }
+  try { cfg = config(); serviceConfig(); }
   catch (error) { return html(res, 503, `<h1>Setup required</h1><p>${error.message}</p><p>Add the required environment settings in Vercel, then redeploy.</p>`); }
 
   const state = crypto.randomBytes(32).toString('base64url');

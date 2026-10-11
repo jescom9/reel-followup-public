@@ -7,7 +7,7 @@ description: Install, test, update and maintain Reel Follow-up on a Raspberry Pi
 
 Use the SSH target and account workspace specified by the user. Discover the Pi's username, IP and host fingerprint when missing; verify its host key before connecting. Distinguish a new test Pi from any existing production installation. Keep the client's private SSH key on the client.
 
-The source is https://github.com/jescom9/reel-followup-public. Public source uses anonymous HTTPS; no deploy key is needed. Self-hosting requires the user’s own Meta app. Assisted setup with the operator’s Meta connection is waitlisted at https://reel-followup.vercel.app/waitlist/; it is not an available token-only installation. Do not register GitHub deploy keys, print key contents or commit key files. The public installation guide is https://reel-followup.vercel.app/tutorial/. The bot runs in Python 3.10+ using the standard library. Vercel serves Instagram OAuth and optional signed forwarding; it does not run the Pi worker or this skill.
+The source is https://github.com/jescom9/reel-followup-public. Public source uses anonymous HTTPS; no deploy key is needed. Self-hosting requires the user’s own Meta app. Assisted setup with the operator’s Meta connection is waitlisted at https://reel-followup.vercel.app/waitlist/; assisted installation remains waitlisted, while eligible accounts can use the secure hosted connection. Do not register GitHub deploy keys, print key contents or commit key files. The public installation guide is https://reel-followup.vercel.app/tutorial/. The bot runs in Python 3.10+ with cryptography for token encryption. Vercel serves Instagram OAuth and optional signed forwarding; it does not run the Pi worker or this skill.
 
 ## Install a fresh Pi
 
@@ -15,7 +15,7 @@ On 64-bit Raspberry Pi OS, enable SSH through the Pi console, install the client
 
 ```sh
 sudo apt update
-sudo apt install -y python3 git curl cron
+sudo apt install -y python3 python3-cryptography git curl cron
 sudo systemctl enable --now ssh cron
 git clone https://github.com/jescom9/reel-followup-public.git reel-followup
 cd reel-followup
@@ -65,7 +65,7 @@ For an authorized source update, use `python3 scripts/reelctl.py update` from a 
 
 ## Live Instagram and optional Neon
 
-For live self-hosting, configure the owner’s own Meta app ID/secret and its authorized account token in the private .env. Deploy a connector with that same app; set REEL_CONNECTOR_URL to its HTTPS /connect/ page. The owner authorizes a Meta-compatible Business or Creator account through that connector and verifies its token in the private dashboard. A copied token from the operator’s app is not a complete independent installation. If the user wants the operator’s service to handle the app and onboarding, direct them to the assisted setup waitlist and do not claim that managed relay is already available. Required permissions include `instagram_business_basic`, `instagram_business_manage_comments` and `instagram_business_manage_messages`; app access levels and reply windows still apply.
+For live self-hosting, configure the owner’s own Meta app ID/secret in private server configuration. Tokens are handed directly to the encrypted Pi vault, not copied from the browser. Deploy a connector with that same app; set REEL_CONNECTOR_URL to its HTTPS /connect/ page. The owner authorizes a Meta-compatible Business or Creator account through that connector and uses the secure Pi bridge to save its token directly in the encrypted vault. The browser must not display or copy the token. Configure the authenticated Pi bridge using scripts/setup-pi-hosted.sh and the public secure connection guide before login. Keep the key files private; do not publish them. If the user wants the operator’s service to handle the app and onboarding, direct them to the assisted setup waitlist for assisted onboarding. The relay requires a configured Pi URL/shared secret and Meta authorization; do not claim universal account access. Required permissions include `instagram_business_basic`, `instagram_business_manage_comments` and `instagram_business_manage_messages`; app access levels and reply windows still apply.
 
 With SQLite/direct delivery, live events need a public HTTPS callback reaching only the signed ingress on port 3131. When requested, use `bash scripts/publish-webhook.sh` and the owner's HTTPS/Funnel approval. Never publish port 3130 or SSH through Funnel. Set `REEL_WEBHOOK_URL` and Meta's verification token consistently, using the same app signing secret on the Pi. Your own Vercel receiver may forward original signed bytes using `REEL_WEBHOOK_FORWARD_URL=https://YOUR_PI_HOST/webhook`, matching signing secret and verification token. Forwarding requires no Neon; the Pi must be reachable for delivery.
 

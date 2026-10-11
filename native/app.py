@@ -15,6 +15,7 @@ try:
     from .webhook_queue import queued_event
     from .neon_http import NeonHTTP
     from .storage import backend_name,delivery_mode
+    from .token_vault import TokenVault
 except ImportError:
     from followup import NeonBridge, ArchiveError, PHRASE, TEXT, RULE, deliver, message_page
     from manychat import ManychatFlow
@@ -23,6 +24,7 @@ except ImportError:
     from webhook_queue import queued_event
     from neon_http import NeonHTTP
     from storage import backend_name,delivery_mode
+    from token_vault import TokenVault
 
 ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = ROOT.parent
@@ -57,7 +59,7 @@ def save_instagram_env(config,path=None):
     path=Path(path or ENV_FILE)
     # Preserve other project settings. This file is ignored by Git and restricted to the owner.
     lines = path.read_text().splitlines() if path.exists() else []
-    managed = {'IG_APP_ID': str(config.get('app_id', '')), 'IG_APP_SECRET': str(config.get('app_secret', '')), 'IG_ACCESS_TOKEN': str(config.get('access_token', ''))}
+    managed = {'IG_APP_ID': str(config.get('app_id', '')), 'IG_APP_SECRET': str(config.get('app_secret', '')), 'IG_ACCESS_TOKEN': ''}
     out, seen = [], set()
     for line in lines:
         key = line.split('=', 1)[0].strip() if '=' in line else ''
@@ -122,6 +124,7 @@ class Store:
         self.folder = Path(folder); self.folder.mkdir(parents=True, exist_ok=True, mode=0o700)
         os.chmod(self.folder, 0o700)
         self.lock = threading.RLock()
+        self.vault = TokenVault(self.folder)
         self.db = sqlite3.connect(self.folder / 'events.sqlite', check_same_thread=False)
         os.chmod(self.folder / 'events.sqlite', 0o600)
         self.db.row_factory = sqlite3.Row
@@ -137,6 +140,15 @@ class Store:
         self.config = {**DEFAULTS, **(json.loads(self.path.read_text()) if self.path.exists() else {})}
         env = read_env(self.env_file)
         self.config.update(app_id=env.get('IG_APP_ID', self.config['app_id']), app_secret=env.get('IG_APP_SECRET', self.config['app_secret']), access_token=env.get('IG_ACCESS_TOKEN', self.config['access_token']))
+        credential=self.vault.get()
+        if env.get('IG_ACCESS_TOKEN'):
+            self.vault.put(env['IG_ACCESS_TOKEN'],self.config.get('account_id',''),self.config.get('app_id',''))
+            if self.folder.resolve() in (self.env_file.parent.resolve(),(self.env_file.parent/'native/.local').resolve()):save_instagram_env(self.config,self.env_file)
+        elif credential:
+            self.config['access_token']=credential['access_token']
+            self.config['token_expires_at']=credential.get('expires_at',0)
+        elif self.config['access_token']:
+            self.vault.put(self.config['access_token'],self.config.get('account_id',''),self.config.get('app_id',''))
         self.config['link_url'] = env.get('REEL_LINK_URL') or self.config.get('link_url') or 'https://example.com/'
         link = urlsplit(self.config['link_url'])
         if link.scheme != 'https' or not link.netloc or link.username or link.password:
@@ -151,6 +163,7 @@ class Store:
             self.config['verify_token'] = secrets.token_hex(24); self.save(self.config)
     def save(self, config):
         with self.lock:
+            if config.get('access_token'):self.vault.put(config['access_token'],config.get('account_id',''),config.get('app_id',''),config.get('token_expires_at',0))
             save_instagram_env(config,self.env_file)
             temp = self.path.with_suffix('.tmp')
             fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -638,6 +651,11 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < size <= 1024 * 1024: return self.reply(413, {})
             raw = self.rfile.read(size)
             if self.server.ingress:
+                if self.path.startswith('/host/'):
+                    if not hasattr(self.server,'host_service') or not self.server.host_service.authenticate(self.path,raw,self.headers):return self.reply(403,{'error':'Host authentication denied.'})
+                    try:return self.reply(200,self.server.host_service.handle(self.path,json.loads(raw)))
+                    except ValueError as error:return self.reply(400,{'error':str(error)})
+                    except Exception:return self.reply(400,{'error':'Host could not complete this account request.'})
                 if self.path != '/webhook': return self.reply(404, {})
                 secret = self.app.store.config['app_secret']
                 expected = 'sha256=' + hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
@@ -721,6 +739,7 @@ class Handler(BaseHTTPRequestHandler):
                 if c.get('workflow_mode')!='manychat':c['enabled']=False
                 c.update(workflow_mode='manychat',keyword=keyword,account_aliases=aliases,username=profile['username'])
                 if data.get('enabled') is True:
+                    if hasattr(self.server,'host_service') and self.server.host_service.reserved(c):raise ValueError('This account is reserved on another installation; migrate it before activation.')
                     challenge = secrets.token_hex(16)
                     parsed = urlsplit(self.app.webhook_url)
                     if parsed.scheme != 'https' or not parsed.netloc or parsed.query or parsed.fragment:
@@ -739,6 +758,7 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == '/api/enable':
                 enable = data.get('enabled') is True
                 if enable:
+                    if hasattr(self.server,'host_service') and self.server.host_service.reserved(c):raise ValueError('This account is reserved on another installation; migrate it before activation.')
                     if not c['verified'] or not c['media_id']: raise ValueError('Verify your account and select a Reel first.')
                     media = Graph(c).call('GET',c['media_id'],fields='id,owner')
                     owner = media.get('owner',{}); owner = owner.get('id') if isinstance(owner,dict) else owner
@@ -760,10 +780,15 @@ def serve():
     except ImportError:
         from accounts import AccountRegistry
     registry=AccountRegistry(PROJECT_ROOT,App,Graph,DEFAULTS)
+    try:
+        from .host_service import HostService
+    except ImportError:
+        from host_service import HostService
+    host_service=HostService(registry)
     app=registry.get('default');servers=[]
     for port,ingress in ((3130,False),(3131,True)):
         server=ThreadingHTTPServer(('127.0.0.1',port),Handler)
-        server.app,server.ingress,server.accounts=app,ingress,registry;servers.append(server)
+        server.app,server.ingress,server.accounts=app,ingress,registry;server.host_service=host_service;servers.append(server)
     registry.start()
     threading.Thread(target=servers[1].serve_forever,daemon=True).start()
     print('Dashboard http://localhost:3130 — account workers run in Python',flush=True)

@@ -3,6 +3,7 @@ set -euo pipefail
 [[ "$(uname -s)" == Linux ]] || { echo 'Run this on the new Pi.' >&2; exit 1; }
 cd "$(dirname "$0")/.."
 python3 -c 'import sys; assert sys.version_info >= (3,10), "Python 3.10+ required"'
+python3 -c 'import cryptography.fernet' || { echo 'Install python3-cryptography first: sudo apt install -y python3-cryptography' >&2; exit 1; }
 umask 077
 if [[ ! -f .env ]]; then
   cp .env.pi.example .env

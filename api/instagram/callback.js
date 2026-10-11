@@ -1,3 +1,5 @@
+const {piRequest}=require('../../lib/pi-service');
+const {issue,cookie}=require('../../lib/hosted-session');
 const { config, mac, safeEqual, html, cookies, stateCookie, exchangeCode } = require('../../lib/instagram-oauth');
 
 module.exports = async function callback(req, res) {
@@ -26,11 +28,12 @@ module.exports = async function callback(req, res) {
   try {
     const result = await exchangeCode(code, cfg);
     const escape = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
-    const safeToken = escape(result.accessToken);
-    const username = escape(result.username), accountId = escape(result.accountId);
-    const expiry = result.expiresIn ? ` Meta reports an expiry of ${Math.floor(result.expiresIn / 86400)} days.` : '';
-    return html(res, 200, `<h1>Connected as @${username}</h1><p>Instagram account ID: <code>${accountId}</code>. Copy this account ID and the access token into your own Reel Follow-up bot’s private Instagram configuration.${expiry}</p><label for="token">Instagram access token</label><textarea id="token" readonly spellcheck="false">${safeToken}</textarea><p><button type="button" onclick="navigator.clipboard.writeText(document.getElementById('token').value).then(()=>document.getElementById('copy-status').textContent='Token copied.').catch(()=>document.getElementById('copy-status').textContent='Select the token above and copy it manually.')">Copy token</button></p><p id="copy-status" role="status" aria-live="polite"></p><small>Keep the token private. It is displayed only in this response and is not added to a URL or saved by this Vercel function.</small><p><a href="/">Connect another account</a></p>`);
+    const savedAccount=await piRequest('/host/connect',{access_token:result.accessToken,app_id:cfg.appId,account_id:result.accountId,expires_at:result.expiresIn?Math.floor(Date.now()/1000)+result.expiresIn:0});
+    if(!savedAccount.stored||savedAccount.account_id!==result.accountId)throw Error('Account was not saved.');
+    res.setHeader('Set-Cookie',[stateCookie('',0),cookie(issue(result.accountId,cfg.stateSecret))]);
+    const username=escape(result.username);
+    return html(res,200,`<h1>Connected as @${username}</h1><p>Your connection is saved in encrypted storage on the Raspberry Pi. Your access token stays on the server.</p><p>New account workspaces start paused. Review your campaigns before activating them.</p><p><a href="/dashboard/">Open my dashboard</a></p>`);
   } catch (error) {
-    return html(res, 400, `<h1>Could not finish Instagram login</h1><p>${error.message.replace(/[<>]/g, '')}</p><p>Check the exact redirect URL, app review/tester access, and granted permissions, then try again.</p>`);
+    return html(res, 400, `<h1>Could not finish Instagram login</h1><p>The connection could not be saved on the Pi. No token will be displayed. Please try again.</p><p>Check the exact redirect URL, app review/tester access, and granted permissions, then try again.</p>`);
   }
 };

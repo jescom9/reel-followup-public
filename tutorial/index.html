@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><meta name="description" content="Run Reel Follow-up on a Raspberry Pi with SQLite, local SSH, Tailscale and a downloadable maintenance skill. Neon is optional."><title>Raspberry Pi tutorial · Reel Follow-up</title><link rel="icon" type="image/png" href="/assets/reel-followup.png"><link rel="stylesheet" href="/site.css"></head>
-<body><main class="card"><a class="brand" href="/" aria-label="Reel Follow-up home"><img src="/assets/reel-followup.png" alt="" width="96" height="96"><span>Reel Follow-up</span></a><p class="eyebrow">SELF-HOSTING TUTORIAL · VERSION 0.3</p>
+<body><main class="card"><a class="brand" href="/" aria-label="Reel Follow-up home"><img src="/assets/reel-followup.png" alt="" width="96" height="96"><span>Reel Follow-up</span></a><p class="eyebrow">SELF-HOSTING TUTORIAL · VERSION 0.4</p>
 <h1>Run Reel Follow-up on your Raspberry Pi</h1>
 <p>The public self-hosting version requires <strong>your own Meta developer app</strong>. Prefer a service-managed connection? <a href="https://reel-followup.vercel.app/waitlist/">Join the assisted setup waitlist</a>.</p>
-<p>Version 0.3 uses <strong>SQLite on the Pi by default</strong>. Events, chats, campaign jobs and delivery receipts stay local. Neon is optional. The bot needs Python 3.10+ and uses its standard library; no Node runtime or Docker bot is required.</p>
+<p>Version 0.4 uses <strong>SQLite on the Pi by default</strong>. Events, chats, campaign jobs and delivery receipts stay local. Neon is optional. The bot needs Python 3.10+ and uses SQLite plus cryptography for token encryption; no Node runtime or Docker bot is required.</p>
 <h2>1 · Connect locally</h2>
 <p>Use 64-bit Raspberry Pi OS and a user with sudo access. In the Pi terminal:</p>
 <pre tabindex="0"><code class="language-sh">sudo systemctl enable --now ssh
@@ -18,7 +18,7 @@ ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 <h2>2 · Install on the new Pi</h2>
 <p>The public source can be cloned over HTTPS without a GitHub account or deploy key. Use your own Meta app for live Instagram automation; see <a href="https://github.com/jescom9/reel-followup-public/blob/main/docs/self-host-meta.md">the Meta setup guide</a>.</p>
 <pre tabindex="0"><code class="language-sh">sudo apt update
-sudo apt install -y python3 git curl cron
+sudo apt install -y python3 python3-cryptography git curl cron
 sudo systemctl enable --now cron
 git clone https://github.com/jescom9/reel-followup-public.git reel-followup
 cd reel-followup
@@ -63,7 +63,7 @@ python3 scripts/reelctl.py service status
 <h2>6 · Connect Instagram and live webhooks</h2>
 <p>Use your own Meta automation app and an authorized Business or Creator account. Required permissions are <code>instagram_business_basic</code>, <code>instagram_business_manage_comments</code> and <code>instagram_business_manage_messages</code>. Meta app access levels, review and messaging windows still apply.</p>
 <p>Deploy your own connector with the same Meta app as the Pi. Visit your own <code>https://YOUR_DOMAIN/connect/</code> page to get the account token. Set <code>REEL_CONNECTOR_URL=https://YOUR_DOMAIN/connect/</code> on the Pi. <a href="https://github.com/jescom9/reel-followup-public/blob/main/docs/self-host-meta.md">Follow the Meta setup steps</a>.</p>
-<p>Vercel can handle sign-in without a database. Configure <code>IG_APP_ID</code>, <code>IG_APP_SECRET</code>, <code>LOGIN_STATE_SECRET</code>, and <code>IG_REDIRECT_URI=https://YOUR_DOMAIN/api/instagram/callback</code>. Register that exact redirect in Meta. After consent, copy the token into the private Pi dashboard and verify its account. Each additional account uses its own workspace.</p>
+<p>Vercel can handle sign-in without a database. Configure <code>IG_APP_ID</code>, <code>IG_APP_SECRET</code>, <code>LOGIN_STATE_SECRET</code>, and <code>IG_REDIRECT_URI=https://YOUR_DOMAIN/api/instagram/callback</code>. Register that exact redirect in Meta. After consent, the connector hands the token directly to the Pi’s encrypted vault. Configure <a href="https://github.com/jescom9/reel-followup-public/blob/main/docs/secure-instagram-connection.md">the authenticated Pi bridge</a> before sign-in. Each additional account uses its own workspace.</p>
 <p>Set the Pi's automation app ID/secret and token in its owner-only <code>.env</code>. Keep <code>REEL_STORAGE=sqlite</code> and <code>REEL_WEBHOOK_DELIVERY=direct</code>. Restart after environment edits: stop, wait until service status shows <code>process_running=false</code>, then start.</p>
 <pre tabindex="0"><code class="language-sh">python3 scripts/reelctl.py service stop
 python3 scripts/reelctl.py service status
@@ -104,4 +104,4 @@ python3 scripts/reelctl.py update
 <p><code>update</code> requires a clean Git checkout, pulls with <code>--ff-only</code>, runs Python tests and restarts one worker. It preserves ignored configuration and databases. Public-source updates use anonymous HTTPS; no GitHub deploy key is required. See <a href="https://github.com/jescom9/reel-followup-public/blob/main/docs/agent-maintenance.md">the agent command guide</a>.</p>
 <p>Run unrelated home-security automation as a separate service. Reel Follow-up does not control cameras, locks or alarms.</p>
 <p><a href="https://reel-followup.vercel.app/waitlist/">Assisted setup waitlist</a> · <a href="https://www.instagram.com/reelfollowup">Follow @reelfollowup</a> · <a href="https://github.com/jescom9/reel-followup-public">GitHub source</a></p>
-<nav class="links" aria-label="Tutorial links"><a href="/waitlist/">Assisted setup waitlist</a><a href="/agent-skill/reel-followup-pi/SKILL.md" download="SKILL.md">Download agent skill</a><a href="https://github.com/jescom9/reel-followup-public" target="_blank" rel="noopener noreferrer">Public GitHub source</a></nav></main></body></html>
+<nav class="links"><a href="/connect/">Secure Instagram sign-in</a><a href="/waitlist/">Assisted setup waitlist</a><a href="https://github.com/jescom9/reel-followup-public">Public source</a></nav></main></body></html>

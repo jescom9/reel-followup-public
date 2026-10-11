@@ -1,3 +1,5 @@
+import {piEventRouter} from '../../lib/pi-event-router.mjs';
+import piService from '../../lib/pi-service.js';
 import {neon} from '@neondatabase/serverless';
 import {createForwardHandler} from '../../lib/instagram-forward.mjs';
 import {createWebhookHandler,webhookAccounts} from '../../lib/instagram-webhook.mjs';
@@ -14,17 +16,17 @@ export default {
     }
     let accounts;
     try { accounts=webhookAccounts(process.env); }
-    catch { return Response.json({error:'Webhook account registry is not configured.'},{status:503}); }
+    catch { if(process.env.REEL_PI_SERVICE_URL)accounts=[];else return Response.json({error:'Webhook account registry is not configured.'},{status:503}); }
+    const saveLegacy=async(events,accountId)=>{
+      if(!process.env.REEL_FOLLOWUP_DATABASE_URL)throw Error('Missing event storage');
+      sql ||= neon(process.env.REEL_FOLLOWUP_DATABASE_URL);return saveWebhookEvents(sql,accountId,events);
+    };
+    const save=process.env.REEL_PI_SERVICE_URL?piEventRouter({legacyAccounts:accounts,sendPi:data=>piService.piRequest('/host/events',data),saveLegacy}):saveLegacy;
     const handler=createWebhookHandler({
       accounts,acceptAuthorizedAccounts:true,
       verifyToken:process.env.IG_WEBHOOK_VERIFY_TOKEN,
       secrets:[process.env.IG_WEBHOOK_APP_SECRET,process.env.IG_APP_SECRET],
-      save:async (events,accountId)=>{
-        if (!events.length) return 0;
-        if (!process.env.REEL_FOLLOWUP_DATABASE_URL) throw Error('Missing event storage');
-        sql ||= neon(process.env.REEL_FOLLOWUP_DATABASE_URL);
-        return saveWebhookEvents(sql,accountId,events);
-      }
+      save
     });
     return handler(request);
   }

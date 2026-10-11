@@ -2,7 +2,7 @@
 
 The public self-hosting version requires **your own Meta developer app**. Prefer a service-managed connection? [Join the assisted setup waitlist](https://reel-followup.vercel.app/waitlist/).
 
-Version 0.3 uses **SQLite on the Pi by default**. Events, chats, campaign jobs and delivery receipts stay local. Neon is optional. The bot needs Python 3.10+ and uses its standard library; no Node runtime or Docker bot is required.
+Version 0.4 uses **SQLite on the Pi by default**. Events, chats, campaign jobs and delivery receipts stay local. Neon is optional. The bot needs Python 3.10+ and uses SQLite plus cryptography for token encryption; no Node runtime or Docker bot is required.
 
 ## 1 · Connect locally
 
@@ -29,7 +29,7 @@ The public source can be cloned over HTTPS without a GitHub account or deploy ke
 
 ```sh
 sudo apt update
-sudo apt install -y python3 git curl cron
+sudo apt install -y python3 python3-cryptography git curl cron
 sudo systemctl enable --now cron
 git clone https://github.com/jescom9/reel-followup-public.git reel-followup
 cd reel-followup
@@ -104,7 +104,7 @@ Use your own Meta automation app and an authorized Business or Creator account. 
 
 Deploy your own connector with the same Meta app as the Pi. Visit your own `https://YOUR_DOMAIN/connect/` page to get the account token. Set `REEL_CONNECTOR_URL=https://YOUR_DOMAIN/connect/` on the Pi. [Follow the Meta setup steps](self-host-meta.md).
 
-Vercel can handle sign-in without a database. Configure `IG_APP_ID`, `IG_APP_SECRET`, `LOGIN_STATE_SECRET`, and `IG_REDIRECT_URI=https://YOUR_DOMAIN/api/instagram/callback`. Register that exact redirect in Meta. After consent, copy the token into the private Pi dashboard and verify its account. Each additional account uses its own workspace.
+Vercel can handle sign-in without a database. Configure `IG_APP_ID`, `IG_APP_SECRET`, `LOGIN_STATE_SECRET`, and `IG_REDIRECT_URI=https://YOUR_DOMAIN/api/instagram/callback`. Register that exact redirect in Meta. After consent, the connector hands the token directly to the Pi’s encrypted vault. Configure [the authenticated Pi bridge](secure-instagram-connection.md) before sign-in. Each additional account uses its own workspace.
 
 Set the Pi's automation app ID/secret and token in its owner-only `.env`. Keep `REEL_STORAGE=sqlite` and `REEL_WEBHOOK_DELIVERY=direct`. Restart after environment edits: stop, wait until service status shows `process_running=false`, then start.
 

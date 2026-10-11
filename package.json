@@ -1,7 +1,7 @@
 {
   "name": "reel-followup-local",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "scripts": {
     "dev": "python3 native/app.py",
     "test": "node --test",

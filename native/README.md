@@ -1,12 +1,12 @@
 # Reel Follow-up on Mac and Raspberry Pi
 
-The bot runs in Python 3.10+ using the standard library. Local SQLite stores events, contacts, chats, jobs and delivery receipts by default. Neon is an optional HTTPS storage/queue backend; no Node worker or Docker bot is required. Node is used for developing and testing the Vercel functions.
+The bot runs in Python 3.10+ with cryptography for token encryption. Local SQLite stores events, contacts, chats, jobs and delivery receipts by default. Neon is an optional HTTPS storage/queue backend; no Node worker or Docker bot is required. Node is used for developing and testing the Vercel functions.
 
 Start locally with `python3 native/app.py`. The dashboard listens on `127.0.0.1:3130` and the signed webhook listener on `127.0.0.1:3131`. Follow the [Pi guide](../docs/raspberry-pi.md) for local SSH, Tailscale SSH and bootstrap. The supervisor restarts the Python bot and launches it at boot.
 
 ## Connect Instagram
 
-Self-hosting requires your own Meta app. Deploy your own Instagram connector and configure `REEL_CONNECTOR_URL` to its `/connect/` page; see [the Meta setup guide](../docs/self-host-meta.md). Use that connector to authorize a Business or Creator account. Copy its token into the bot's private Instagram configuration and verify the account. Meta app approval, messaging permissions and conversation routing still apply. Store tokens and any optional database connection in the owner-only, Git-ignored `.env` file. Never copy them into GitHub or a public URL.
+Self-hosting requires your own Meta app. Deploy your own Instagram connector and configure `REEL_CONNECTOR_URL` to its `/connect/` page; see [the Meta setup guide](../docs/self-host-meta.md). Use that connector to authorize a Business or Creator account. The sign-in callback stores its token directly in the Pi’s encrypted database; it does not display a token for copying. Follow [the secure connection guide](../docs/secure-instagram-connection.md). Meta app approval, messaging permissions and conversation routing still apply. Tokens live in the encrypted per-account SQLite vault. Keep app/service secrets and any optional database connection in the owner-only, Git-ignored `.env` file. Never copy them into GitHub or a public URL.
 
 By default, HTTPS delivers signed events directly to the Pi and its SQLite queue. Vercel may forward the original signed bytes or optionally queue events in Neon. Set `REEL_STORAGE` and `REEL_WEBHOOK_DELIVERY` explicitly for Neon. Keep only one bot worker for a given account; delivery claims prevent repeated sends after duplicate webhook delivery or a restart.
 
@@ -24,7 +24,7 @@ Follow-ups are scheduled separately for each flow/contact. The bot checks the li
 
 The history panel saves conversation/message pages in separate Reel Follow-up tables, resumes interrupted pages, and refreshes changed conversations. The optional historical batch tool matches older link messages; it is separate from the new per-flow schedules.
 
-Run `python3 -m unittest discover -s test -p 'test_*.py'` for Python regression tests. With development dependencies installed, `pnpm test` checks the Vercel OAuth and signed receiver. Token renewal, public multi-user workspaces and home-security control are separate features.
+Run `python3 -m unittest discover -s test -p 'test_*.py'` for Python regression tests. With development dependencies installed, `pnpm test` checks the Vercel OAuth and signed receiver. The hosted dashboard uses account-scoped Instagram sessions. Automatic token renewal and home-security control are separate features.
 
 ## Multiple accounts and public comment reminders
 

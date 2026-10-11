@@ -3,3 +3,4 @@
 
 :root{--focus:#3e8428;--error:#b42318}@media(prefers-color-scheme:dark){:root{--focus:#8fd973;--error:#ffb4ab}}
 :root{--input-border:#817b6e}input::placeholder{color:var(--muted);opacity:1}@media(prefers-color-scheme:dark){:root{--input-border:#939589}}
+textarea{width:100%;min-height:100px;padding:12px;font:inherit;background:var(--page);color:var(--ink);border:1px solid var(--input-border);border-radius:8px}textarea:focus-visible{outline:3px solid var(--focus);outline-offset:3px}

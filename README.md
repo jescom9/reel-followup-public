@@ -2,7 +2,7 @@
 
 # Reel Follow-up
 
-An MIT-licensed Instagram keyword-to-DM bot with editable links, follower checks, follow-ups, pause controls and multiple account workspaces. Run it on a Raspberry Pi or Mac. The bot uses Python's standard library and **local SQLite by default**. Neon is optional.
+An MIT-licensed Instagram keyword-to-DM bot with editable links, follower checks, follow-ups, pause controls and multiple account workspaces. Run it on a Raspberry Pi or Mac. The bot uses Python with cryptography for token encryption and **local SQLite by default**. Neon is optional.
 
 ## Choose your setup
 

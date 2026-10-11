@@ -1,5 +1,7 @@
 """A single Python service with separate account credentials and worker data."""
 import threading
+import time
+import re
 from pathlib import Path
 try:
     from .profiles import Profiles,read_values
@@ -39,6 +41,33 @@ class AccountRegistry:
             if subscribed.get('success') is not True:raise ValueError('Instagram did not confirm the webhook subscription.')
             identifier=self.profiles.create({**credentials,'app_id':app_id},profile)
             self.load(identifier);return identifier
+    def find_account(self,account_id):
+        with self.lock:
+            for identifier,app in self.apps.items():
+                own={str(app.store.config.get('account_id','')),*map(str,app.store.config.get('account_aliases',[]))}
+                if str(account_id) in own and app.store.config.get('verified'):return identifier,app
+        return None
+    def connect_hosted(self,data):
+        with self.lock:
+            root=self.get('default').store.config
+            if str(data.get('app_id'))!=str(root.get('app_id')):raise ValueError('Connection app does not match this host.')
+            token=data.get('access_token','')
+            if not isinstance(token,str) or not token or len(token)>8192 or any(c in token for c in '\r\n\x00') or not re.fullmatch(r'\d+',str(data.get('account_id',''))):raise ValueError('Invalid connection details.')
+            profile=self.graph({**root,'access_token':token}).call('GET','me',fields='user_id,username')
+            if str(profile.get('user_id'))!=str(data.get('account_id')):raise ValueError('Account identity could not be confirmed.')
+            subscribed=self.graph({**root,'access_token':token}).call('POST',str(profile['user_id'])+'/subscribed_apps',{'subscribed_fields':'comments,messages,messaging_postbacks'})
+            if subscribed.get('success') is not True:raise ValueError('Webhook subscription was not confirmed.')
+            existing=self.find_account(profile['user_id'])
+            expiry=float(data.get('expires_at') or 0)
+            if existing:
+                identifier,app=existing
+                config={**app.store.config,'access_token':token,'token_expires_at':expiry,'verified':True}
+                app.store.save(config)
+            else:
+                identifier=self.profiles.create({'access_token':token,'app_id':root['app_id'],'expires_at':expiry},profile)
+                app=self.load(identifier)
+                app.store.save({**app.store.config,'token_expires_at':expiry,'webhook_verified':True})
+            return {'profile_id':identifier,'account_id':str(profile['user_id']),'username':profile['username'],'stored':True,'enabled':app.store.config['enabled']}
     def start_app(self,app):
         for task in [app.worker,app.archive_worker,app.dashboard_worker,app.webhook_worker]:threading.Thread(target=task,daemon=True).start()
     def start(self):

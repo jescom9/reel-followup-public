@@ -84,12 +84,17 @@ class Profiles:
         allowed = {'IG_APP_ID','IG_APP_SECRET','IG_ACCESS_TOKEN','REEL_FOLLOWUP_DATABASE_URL',
                    'IG_WEBHOOK_VERIFY_TOKEN','IG_WEBHOOK_APP_SECRET','REEL_WEBHOOK_URL','REEL_LINK_URL','REEL_STORAGE','REEL_WEBHOOK_DELIVERY','REEL_CONNECTOR_URL'}
         values = {key: value for key, value in read_values(self.project / '.env').items() if key in allowed}
-        values['IG_ACCESS_TOKEN'] = token
+        values['IG_ACCESS_TOKEN'] = ''
         values['REEL_LINK_URL'] = destination
         values['IG_APP_ID'] = str(credentials['app_id'])
         if any('\n' in value or '\r' in value for value in values.values()):
             raise ValueError('Invalid credential configuration.')
         folder.mkdir(parents=True, exist_ok=False, mode=0o700)
+        try:
+            from .token_vault import TokenVault
+        except ImportError:
+            from token_vault import TokenVault
+        TokenVault(folder).put(token,account_id,values['IG_APP_ID'],credentials.get('expires_at',0))
         config = {**self.defaults, 'account_id': account_id, 'username': profile['username'],
                   'app_id': values['IG_APP_ID'], 'account_aliases': sorted({str(profile[key]) for key in ('user_id', 'id') if profile.get(key)}),
                   'verified': True, 'enabled': False, 'workflow_mode': 'manychat',
