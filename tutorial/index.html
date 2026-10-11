@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><meta name="description" content="Run Reel Follow-up on a Raspberry Pi with SQLite, local SSH, Tailscale and a downloadable maintenance skill. Neon is optional."><title>Raspberry Pi tutorial · Reel Follow-up</title><link rel="icon" type="image/png" href="/assets/reel-followup.png"><link rel="stylesheet" href="/site.css"></head>
+<body><main class="card"><a class="brand" href="/" aria-label="Reel Follow-up home"><img src="/assets/reel-followup.png" alt="" width="96" height="96"><span>Reel Follow-up</span></a><p class="eyebrow">SELF-HOSTING TUTORIAL · VERSION 0.3</p>
+<h1>Run Reel Follow-up on your Raspberry Pi</h1>
+<p>The public self-hosting version requires <strong>your own Meta developer app</strong>. Prefer a service-managed connection? <a href="https://reel-followup.vercel.app/waitlist/">Join the assisted setup waitlist</a>.</p>
+<p>Version 0.3 uses <strong>SQLite on the Pi by default</strong>. Events, chats, campaign jobs and delivery receipts stay local. Neon is optional. The bot needs Python 3.10+ and uses its standard library; no Node runtime or Docker bot is required.</p>
+<h2>1 · Connect locally</h2>
+<p>Use 64-bit Raspberry Pi OS and a user with sudo access. In the Pi terminal:</p>
+<pre tabindex="0"><code class="language-sh">sudo systemctl enable --now ssh
+whoami
+hostname -I
+ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
+</code></pre>
+<p>Install your client's public SSH key in <code>~/.ssh/authorized_keys</code>; set <code>.ssh</code> to mode 700 and <code>authorized_keys</code> to 600. Keep the private key on the client. Compare the first-connection fingerprint with the Pi's output.</p>
+<pre tabindex="0"><code class="language-sh">ssh YOUR_USER@NEW_PI_IP
+</code></pre>
+<p><a href="https://www.raspberrypi.com/documentation/computers/remote-access.html">Official Raspberry Pi SSH guide</a>.</p>
+<h2>2 · Install on the new Pi</h2>
+<p>The public source can be cloned over HTTPS without a GitHub account or deploy key. Use your own Meta app for live Instagram automation; see <a href="https://github.com/jescom9/reel-followup-public/blob/main/docs/self-host-meta.md">the Meta setup guide</a>.</p>
+<pre tabindex="0"><code class="language-sh">sudo apt update
+sudo apt install -y python3 git curl cron
+sudo systemctl enable --now cron
+git clone https://github.com/jescom9/reel-followup-public.git reel-followup
+cd reel-followup
+git switch main
+bash scripts/bootstrap-pi.sh
+python3 scripts/reelctl.py status
+python3 scripts/reelctl.py service status
+</code></pre>
+<p>The bootstrap copies <code>.env.pi.example</code> only if no <code>.env</code> exists, generates a verification token, runs an isolated test, and installs a Python supervisor with a user <code>@reboot</code> cron entry. Existing configuration is preserved. Fresh accounts stay paused until verified and enabled. Run one worker per installation.</p>
+<p>The fresh defaults require no cloud database:</p>
+<pre tabindex="0"><code class="language-dotenv">REEL_STORAGE=sqlite
+REEL_WEBHOOK_DELIVERY=direct
+REEL_FOLLOWUP_DATABASE_URL=
+</code></pre>
+<p>Private data lives in <code>native/.local/</code>. The root account uses <code>native/.local/events.sqlite</code>; additional accounts use their own folders. Back up these files together while the worker is stopped. Preserve delivery receipts to prevent duplicate sends.</p>
+<h2>3 · Enable remote SSH with Tailscale</h2>
+<p>On the Pi:</p>
+<pre tabindex="0"><code class="language-sh">bash scripts/setup-remote-ssh.sh
+</code></pre>
+<p>The helper installs official Tailscale, enables its system service, and enrolls the new Pi as <code>reel-followup-test</code> with Tailscale SSH. Open its enrollment URL and approve it using the same tailnet as your client.</p>
+<p>From a client connected to Tailscale:</p>
+<pre tabindex="0"><code class="language-sh">tailscale ssh YOUR_USER@reel-followup-test
+</code></pre>
+<p>Tailscale SSH needs both network access and SSH permission in the tailnet policy. Existing custom policies may require a rule for your maintenance user and this device. Keep local OpenSSH available on the LAN IP. No FRITZ!Box forwarding or public IPv6 address is required.</p>
+<p><a href="https://tailscale.com/docs/features/tailscale-ssh">Official Tailscale SSH instructions</a>.</p>
+<h2>4 · Open the private dashboard</h2>
+<p>Keep this tunnel open on the client; use the LAN IP first, then the Pi's Tailscale hostname/IP away from home:</p>
+<pre tabindex="0"><code class="language-sh">ssh -N -L 127.0.0.1:3130:127.0.0.1:3130 YOUR_USER@NEW_PI_IP
+</code></pre>
+<p>Open <a href="http://localhost:3130">http://localhost:3130</a>. If Tailscale SSH is enabled and permitted, ordinary <code>ssh YOUR_USER@reel-followup-test</code> also uses its server on the Tailscale address. Keep port 3130 available on the client. The dashboard binds to loopback and stays private.</p>
+<p>Closing the browser, SSH session or Mac does not stop the Pi's supervisor.</p>
+<h2>5 · Test without Instagram credentials or Neon</h2>
+<pre tabindex="0"><code class="language-sh">python3 scripts/reelctl.py selftest
+python3 scripts/reelctl.py campaign add \
+  --name 'Setup test' --keyword SETUPTEST --link https://example.com/
+python3 scripts/reelctl.py campaign list
+python3 scripts/reelctl.py campaign pause CAMPAIGN_ID
+python3 scripts/reelctl.py service status
+</code></pre>
+<p>The self-test uses disposable SQLite storage and a fake Instagram API. It exercises the real signed HTTP listener, follower/link branch, duplicate protection and receipt persistence. It sends <strong>zero external messages</strong>. New campaigns and their follow-ups start paused. Replace <code>CAMPAIGN_ID</code> with the returned ID.</p>
+<p>Disconnect SSH, reconnect, then check service status. Both <code>supervisor_running</code> and <code>process_running</code> should be true. Separately verify reboot recovery and off-network Tailscale access before relying on unattended operation.</p>
+<h2>6 · Connect Instagram and live webhooks</h2>
+<p>Use your own Meta automation app and an authorized Business or Creator account. Required permissions are <code>instagram_business_basic</code>, <code>instagram_business_manage_comments</code> and <code>instagram_business_manage_messages</code>. Meta app access levels, review and messaging windows still apply.</p>
+<p>Deploy your own connector with the same Meta app as the Pi. Visit your own <code>https://YOUR_DOMAIN/connect/</code> page to get the account token. Set <code>REEL_CONNECTOR_URL=https://YOUR_DOMAIN/connect/</code> on the Pi. <a href="https://github.com/jescom9/reel-followup-public/blob/main/docs/self-host-meta.md">Follow the Meta setup steps</a>.</p>
+<p>Vercel can handle sign-in without a database. Configure <code>IG_APP_ID</code>, <code>IG_APP_SECRET</code>, <code>LOGIN_STATE_SECRET</code>, and <code>IG_REDIRECT_URI=https://YOUR_DOMAIN/api/instagram/callback</code>. Register that exact redirect in Meta. After consent, copy the token into the private Pi dashboard and verify its account. Each additional account uses its own workspace.</p>
+<p>Set the Pi's automation app ID/secret and token in its owner-only <code>.env</code>. Keep <code>REEL_STORAGE=sqlite</code> and <code>REEL_WEBHOOK_DELIVERY=direct</code>. Restart after environment edits: stop, wait until service status shows <code>process_running=false</code>, then start.</p>
+<pre tabindex="0"><code class="language-sh">python3 scripts/reelctl.py service stop
+python3 scripts/reelctl.py service status
+python3 scripts/reelctl.py service start
+</code></pre>
+<p>Live flows need a public HTTPS endpoint reaching only the signed listener on <code>127.0.0.1:3131</code>. Tailscale Funnel can provide it:</p>
+<pre tabindex="0"><code class="language-sh">bash scripts/publish-webhook.sh
+</code></pre>
+<p>Approve HTTPS/Funnel if requested. The helper publishes the <strong>signed-only listener</strong>, never the dashboard or SSH. Set <code>REEL_WEBHOOK_URL=https://YOUR_PI_HOST/webhook</code>, restart, and register this URL in Meta with the Pi's <code>IG_WEBHOOK_VERIFY_TOKEN</code>. The Pi verifies POST signatures with the Meta app secret and queues accepted events in SQLite.</p>
+<p><a href="https://tailscale.com/docs/reference/examples/funnel">Official Funnel examples</a>.</p>
+<p>Alternatively, your own Vercel receiver can forward to this Pi URL. Set Vercel's <code>REEL_WEBHOOK_FORWARD_URL=https://YOUR_PI_HOST/webhook</code>, matching <code>IG_WEBHOOK_VERIFY_TOKEN</code>, and <code>IG_APP_SECRET</code> or <code>IG_WEBHOOK_APP_SECRET</code>. Register <code>https://YOUR_DOMAIN/api/instagram/webhook</code> in Meta and set that as the Pi's <code>REEL_WEBHOOK_URL</code>. This route does not need Neon: Vercel checks the signature and forwards the original signed bytes. If the Pi is unavailable, it returns an error so Meta can retry. Direct delivery depends on the Pi being online; it does not provide a separate cloud backlog.</p>
+<p>Create keyword campaigns with your own links and messages. Resume only the account and flows you intend to activate. Follow-ups and optional public comment reminders have separate pause switches. Keep only one active installation per Instagram account.</p>
+<h2>Optional · Neon archive and cloud queue</h2>
+<p>Use Neon explicitly for a managed archive and queue while the Pi is offline:</p>
+<pre tabindex="0"><code class="language-dotenv">REEL_STORAGE=neon
+REEL_WEBHOOK_DELIVERY=neon
+REEL_FOLLOWUP_DATABASE_URL=YOUR_PRIVATE_WORKER_CONNECTION
+REEL_WEBHOOK_URL=https://YOUR_DOMAIN/api/instagram/webhook
+</code></pre>
+<p>In Vercel, leave <code>REEL_WEBHOOK_FORWARD_URL</code> unset and configure its restricted database connection, verification token, signing secret and consenting account registry (<code>IG_WEBHOOK_ACCOUNT_ID</code> / aliases or <code>IG_WEBHOOK_ACCOUNTS</code>). The Python worker creates its tables and connects over HTTPS without Node.</p>
+<p>Older installations with a database URL and no storage selector keep their Neon behavior. Changing the selector does not migrate history or delivery receipts. Back up and migrate state before switching a live account. A fresh test installation needs no migration.</p>
+<h2>Copy the maintenance skill into your agent</h2>
+<p>Download <a href="https://reel-followup.vercel.app/agent-skill/reel-followup-pi/SKILL.md">the agent skill</a> into your agent's skill folder. For Codex on the client or Pi:</p>
+<pre tabindex="0"><code class="language-sh">mkdir -p ~/.codex/skills/reel-followup-pi
+curl -fsSL https://reel-followup.vercel.app/agent-skill/reel-followup-pi/SKILL.md \
+  -o ~/.codex/skills/reel-followup-pi/SKILL.md
+</code></pre>
+<p>Start a new agent session if needed, then ask: Use <code>$reel-followup-pi</code> to connect to my test Pi, report status and add a paused campaign. Other SKILL.md-compatible agents can use their own skill directory. The public file contains no credentials. Vercel hosts the download; the agent uses SSH to do the work.</p>
+<h2>Maintenance · Agent commands and updates</h2>
+<p>An agent with authorized SSH can use the same Pi-side commands:</p>
+<pre tabindex="0"><code class="language-sh">cd ~/reel-followup
+python3 scripts/reelctl.py status
+python3 scripts/reelctl.py accounts
+python3 scripts/reelctl.py campaign list
+python3 scripts/reelctl.py --account PROFILE_ID campaign pause CAMPAIGN_ID
+python3 scripts/reelctl.py update
+</code></pre>
+<p><code>update</code> requires a clean Git checkout, pulls with <code>--ff-only</code>, runs Python tests and restarts one worker. It preserves ignored configuration and databases. Public-source updates use anonymous HTTPS; no GitHub deploy key is required. See <a href="https://github.com/jescom9/reel-followup-public/blob/main/docs/agent-maintenance.md">the agent command guide</a>.</p>
+<p>Run unrelated home-security automation as a separate service. Reel Follow-up does not control cameras, locks or alarms.</p>
+<p><a href="https://reel-followup.vercel.app/waitlist/">Assisted setup waitlist</a> · <a href="https://www.instagram.com/reelfollowup">Follow @reelfollowup</a> · <a href="https://github.com/jescom9/reel-followup-public">GitHub source</a></p>
+<nav class="links" aria-label="Tutorial links"><a href="/waitlist/">Assisted setup waitlist</a><a href="/agent-skill/reel-followup-pi/SKILL.md" download="SKILL.md">Download agent skill</a><a href="https://github.com/jescom9/reel-followup-public" target="_blank" rel="noopener noreferrer">Public GitHub source</a></nav></main></body></html>

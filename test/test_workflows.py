@@ -1,0 +1,98 @@
+import copy,unittest
+from datetime import datetime,timezone
+from native.workflows import WorkflowEngine,validate_flows,flows
+from test_follower_checks import DurableStore
+from test_manychat import API,CONFIG,COMMENT,NOW,button
+
+class WorkflowAPI(API):
+    def send_link(self,recipient,text,label,url):
+        self.calls.append(('url',recipient,text,label,url));return {'message_id':'url-receipt','recipient_id':'dm-user'}
+    def call(self,method,path,data=None,**query):
+        if path=='business/conversations':return {'data':[{'id':'conversation','participants':{'data':[{'id':'dm-user'}]}}]}
+        if path=='conversation' and getattr(self,'no_inbound',False):return {'messages':{'data':[]}}
+        if path=='conversation':return {'messages':{'data':[{'id':'inbound','created_time':datetime.fromtimestamp(NOW-1,timezone.utc).isoformat(),'from':{'id':'dm-user'},'message':'Following'}]}}
+        return super().call(method,path,data,**query)
+
+def flow(fid,keyword,follow=True):
+    return {'id':fid,'name':keyword.title(),'keywords':[keyword],'enabled':True,'require_follow':follow,
+        'link_button':True,'link_url':f'https://example.test/{keyword}','opening_text':'Folge meinem Account und tippe auf Following 👇',
+        'follow_text':'Tippe nach dem Folgen auf Following 👇','link_text':'Dein Link','button_text':'Open link',
+        'public_reply':True,'public_reply_text':'Sent you a message!','followup_enabled':True,
+        'followup_delay_minutes':1,'followup_text':f'How was {keyword}?'}
+
+class WorkflowTests(unittest.TestCase):
+    def setUp(self):
+        self.now=NOW;self.store=DurableStore();self.api=WorkflowAPI()
+        self.c={**CONFIG,'flows':[flow('alarm','alarm'),flow('app','app',False)]}
+        self.engine=WorkflowEngine(self.store,lambda _:self.api,None,lambda:self.now)
+    def comment(self,keyword,key='comment:1'):
+        event=copy.deepcopy(COMMENT);event['value']['text']=keyword
+        return self.engine.process(key,event,self.c)
+    def click(self,fid='alarm',key='click'):
+        return self.engine.process(key,button('RF_FOLLOW:'+fid),self.c)
+    def tearDown(self):self.store.db.close()
+    def test_distinct_keywords_have_distinct_destinations_and_follow_requirements(self):
+        self.comment('alarm');self.assertFalse(any(c[0]=='url' for c in self.api.calls))
+        self.click();self.assertEqual(self.api.calls[-1][-1],'https://example.test/alarm')
+        self.comment('app','comment:2');self.assertEqual([c[-1] for c in self.api.calls if c[0]=='url'],['https://example.test/alarm','https://example.test/app'])
+    def test_delayed_following_requires_true_without_repeat_prompts(self):
+        self.comment('alarm');self.api.following=False;self.click()
+        self.click(key='click2');self.assertEqual(sum(c[0]=='button' for c in self.api.calls),2)
+        self.now+=5;self.engine.run_one(self.c)
+        self.assertFalse(any(c[0]=='url' for c in self.api.calls))
+        self.api.following=True;self.now+=15;self.engine.run_one(self.c)
+        self.assertEqual(sum(c[0]=='url' for c in self.api.calls),1)
+    def test_duplicate_click_does_not_send_duplicate_link(self):
+        self.comment('alarm');self.click();self.click()
+        self.assertEqual(sum(c[0]=='url' for c in self.api.calls),1)
+    def test_automatic_followup_uses_each_flows_own_text_once(self):
+        self.comment('alarm');self.click();self.now+=60
+        self.assertTrue(self.engine.run_one(self.c));self.assertEqual(self.api.calls[-1],('send',{'id':'dm-user'},'How was alarm?'))
+        self.assertFalse(self.engine.run_one(self.c));self.assertEqual(sum(c[0]=='send' for c in self.api.calls),1)
+    def test_paused_followups_resume_without_stopping_initial_link(self):
+        self.c['flows'][0]['followup_enabled']=False;self.comment('alarm');self.click();self.now+=60
+        self.assertFalse(self.engine.run_one(self.c));self.assertEqual(sum(c[0]=='url' for c in self.api.calls),1)
+        self.c['flows'][0]['followup_enabled']=True;self.assertTrue(self.engine.run_one(self.c))
+    def test_paused_flow_does_not_send_or_recheck(self):
+        self.comment('alarm');self.api.following=False;self.click();self.c['flows'][0]['enabled']=False;self.now+=30
+        calls=len(self.api.calls);self.assertFalse(self.engine.run_one(self.c));self.click(key='late');self.assertEqual(len(self.api.calls),calls)
+    def test_no_follow_url_click_does_not_open_followup_window(self):
+        self.api.no_inbound=True;self.comment('app');self.now+=60;self.engine.run_one(self.c)
+        self.assertFalse(any(c[0]=='send' for c in self.api.calls))
+        self.assertEqual(self.store.execute('SELECT state FROM workflow_jobs')[0]['state'],'waiting_inbound')
+        event=button();event['value'].pop('postback');event['value']['message']={'text':'Thanks'};event['value']['timestamp']=self.now*1000
+        self.api.no_inbound=False;self.engine.process('reply',event,self.c);self.engine.run_one(self.c)
+        self.assertEqual(self.api.calls[-1],('send',{'id':'dm-user'},'How was app?'))
+    def test_expired_live_inbox_or_local_window_never_receives_followup(self):
+        self.comment('alarm');self.click();self.now+=86400;self.engine.run_one(self.c)
+        self.assertFalse(any(c[0]=='send' for c in self.api.calls))
+        self.assertEqual(self.store.execute("SELECT state FROM workflow_jobs WHERE kind='followup'")[0]['state'],'expired')
+    def test_fresh_live_reply_can_recover_a_missed_inbound_webhook(self):
+        self.comment('alarm');self.click();self.now+=90000
+        original=self.api.call
+        def live(method,path,**query):
+            if path=='conversation':return {'messages':{'data':[{'created_time':datetime.fromtimestamp(self.now-5,timezone.utc).isoformat(),'from':{'id':'dm-user'}}]}}
+            return original(method,path,**query)
+        self.api.call=live;self.engine.run_one(self.c)
+        self.assertEqual(self.api.calls[-1],('send',{'id':'dm-user'},'How was alarm?'))
+    def test_live_window_is_rechecked_even_when_local_window_is_fresh(self):
+        self.comment('alarm');self.click();self.now+=60
+        original=self.api.call
+        self.api.call=lambda method,path,**kw: {'messages':{'data':[]}} if path=='conversation' else original(method,path,**kw)
+        self.engine.run_one(self.c);self.assertFalse(any(c[0]=='send' for c in self.api.calls))
+    def test_unrelated_or_unopened_button_cannot_receive_a_link(self):
+        self.click();self.assertEqual(self.api.calls,[])
+        self.comment('alarm');event=button('ACT::other');event['value']['postback']['title']='Shop'
+        self.engine.process('shop',event,self.c);self.assertFalse(any(c[0]=='url' for c in self.api.calls))
+    def test_validation_rejects_conflicting_keywords_and_unsafe_links(self):
+        self.assertEqual(len(validate_flows(self.c['flows'])),2)
+        for modify in [lambda c:c[1].update(keywords=['ALARM']),lambda c:c[1].update(link_url='http://example.test'),lambda c:c[1].update(link_url='https://user:password@example.test'),lambda c:c[1].update(followup_delay_minutes=1440)]:
+            items=copy.deepcopy(self.c['flows']);modify(items)
+            with self.assertRaises(ValueError):validate_flows(items)
+    def test_paused_drafts_can_wait_for_destination_url(self):
+        draft=flow('draft','new');draft.update(enabled=False,link_url='')
+        self.assertEqual(validate_flows([draft])[0]['link_url'],'')
+        draft['enabled']=True
+        with self.assertRaises(ValueError):validate_flows([draft])
+
+if __name__=='__main__':unittest.main()

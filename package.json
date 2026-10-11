@@ -1,0 +1,13 @@
+{
+  "name": "reel-followup-local",
+  "private": true,
+  "version": "0.3.0",
+  "scripts": {
+    "dev": "python3 native/app.py",
+    "test": "node --test",
+    "test:native": "python3 -m unittest discover -s test -p 'test_*.py'"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.2.0"
+  }
+}
