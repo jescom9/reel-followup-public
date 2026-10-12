@@ -6,5 +6,6 @@ test('portal derives ownership from the cookie and rejects cross-site mutations'
  const response=()=>({headers:{},setHeader(k,v){this.headers[k]=v;},status(code){this.code=code;return this;},json(data){this.data=data;}});
  try{const req={method:'POST',headers:{origin:'https://example.test',cookie:'__Host-reel_session='+issue('123','state-secret')},body:{operation:'account.toggle',account_id:'999',data:{enabled:false,account_id:'999'}}},res=response();await account(req,res);assert.equal(res.code,200);assert.equal(sent[0].account_id,'123');
  const rejected=response();await account({...req,headers:{...req.headers,origin:'https://attacker.invalid'}},rejected);assert.equal(rejected.code,403);assert.equal(sent.length,1);
+ const history=response();await account({...req,body:{operation:'archive.conversation',account_id:'999',data:{conversation_id:'thread',account_id:'999'}}},history);assert.equal(history.code,200);assert.equal(sent[1].account_id,'123');assert.equal(sent[1].operation,'archive.conversation');
  }finally{global.fetch=oldFetch;for(const key of Object.keys(process.env))if(!(key in oldEnv))delete process.env[key];Object.assign(process.env,oldEnv);}
 });

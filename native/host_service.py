@@ -6,10 +6,14 @@ try:
     from .profiles import read_values
     from .workflows import flows,validate_flows
     from .webhook_queue import queued_event
+    from . import hosted_history
+    from .storage import StorageBridge,backend_name
 except ImportError:
     from profiles import read_values
     from workflows import flows,validate_flows
     from webhook_queue import queued_event
+    import hosted_history
+    from storage import StorageBridge,backend_name
 
 class HostService:
     def __init__(self,registry,clock=time.time):
@@ -52,13 +56,21 @@ class HostService:
         if path!='/host/portal' or not found:raise ValueError('Account is not connected on this host.')
         identifier,app=found;config=dict(app.store.config);op=data.get('operation');value=data.get('data') or {}
         if op=='status':
+            history=None
+            if backend_name(app.store.env_file)=='sqlite':
+                with StorageBridge(app.store.env_file,app.store.folder):pass
+                history=hosted_history.summary(app.store)
             return {'username':config['username'],'account_id':config['account_id'],'enabled':config['enabled'],'flows':flows(config),
-                'reserved':self.reserved(config),'credentials':{'stored':bool(app.store.vault.get()),'expires_at':config.get('token_expires_at',0)}}
+                'history':history,'reserved':self.reserved(config),'credentials':{'stored':bool(app.store.vault.get()),'expires_at':config.get('token_expires_at',0)}}
+        if op in ('archive.list','archive.conversation'):
+            if backend_name(app.store.env_file)!='sqlite':raise ValueError('This archive is available in the private Pi dashboard. Contact the host to enable it here.')
+            with StorageBridge(app.store.env_file,app.store.folder):pass
+            return hosted_history.chats(app.store,value) if op=='archive.list' else hosted_history.conversation(app.store,value)
         if op=='account.toggle':
             if not isinstance(value.get('enabled'),bool):raise ValueError('Invalid account pause setting.')
             if value['enabled'] and self.reserved(config):raise ValueError('This account runs on another installation. Ask the host to migrate it before activating this workspace.')
             config.update(enabled=value['enabled'],workflow_mode='manychat')
-            if value['enabled']:config['campaign_started_at']=self.clock()
+            if value['enabled'] and not config.get('campaign_started_at'):config['campaign_started_at']=self.clock()
         elif op=='flows.save':
             config['flows']=validate_flows(value.get('flows'));config['workflow_mode']='manychat'
             placeholders=','.join('?' for f in config['flows'])

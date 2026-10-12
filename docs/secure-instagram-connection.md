@@ -25,6 +25,10 @@ The Vercel account API always derives the account ID from the authenticated cook
 
 Existing accounts configured in the Vercel legacy registry keep their current queue routing. To prevent a second active worker, set `REEL_RESERVED_ACCOUNT_IDS` on a new Pi to their canonical/alias IDs. Those workspaces cannot be activated there until the operator intentionally migrates them and removes their legacy routing.
 
+For a migration, pause the old workspace, back up both installations, and import the account's archive, contacts, delivery claims and workflow jobs into its new workspace. Preserve accepted and uncertain delivery claims so restoring history cannot repeat a send. Keep the new encrypted credential; do not replace it with an old token. The hosted dashboard displays local contacts and paginated chat history only for the signed-in account.
+
+After verifying the import, set `REEL_PI_ACCOUNT_IDS` in Vercel to the migrated account's canonical and alias IDs, separated by commas. This explicitly routes those IDs to the Pi while preserving other legacy routes. Redeploy Vercel, import any remaining events from the old queue, and remove only those IDs from the new Pi's `REEL_RESERVED_ACCOUNT_IDS`. Activate one installation. Accounts whose archive remains in Neon use the private Pi dashboard for history.
+
 ## Existing credentials and backups
 
 On startup, credentials supplied in the installation’s `.env` are imported into the encrypted vault; managed token values are cleared from that live environment file. Tokens received through OAuth are never written to workspace `.env` files. Runtime configuration omits tokens from JSON and public APIs. Existing backups may still contain older plaintext configuration and remain private.

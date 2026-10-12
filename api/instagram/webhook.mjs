@@ -21,7 +21,8 @@ export default {
       if(!process.env.REEL_FOLLOWUP_DATABASE_URL)throw Error('Missing event storage');
       sql ||= neon(process.env.REEL_FOLLOWUP_DATABASE_URL);return saveWebhookEvents(sql,accountId,events);
     };
-    const save=process.env.REEL_PI_SERVICE_URL?piEventRouter({legacyAccounts:accounts,sendPi:data=>piService.piRequest('/host/events',data),saveLegacy}):saveLegacy;
+    const hostedAccountIds=(process.env.REEL_PI_ACCOUNT_IDS||'').split(',').map(id=>id.trim()).filter(Boolean);
+    const save=process.env.REEL_PI_SERVICE_URL?piEventRouter({legacyAccounts:accounts,hostedAccountIds,sendPi:data=>piService.piRequest('/host/events',data),saveLegacy}):saveLegacy;
     const handler=createWebhookHandler({
       accounts,acceptAuthorizedAccounts:true,
       verifyToken:process.env.IG_WEBHOOK_VERIFY_TOKEN,
