@@ -17,6 +17,7 @@ def run():
     create=sub.add_parser('create');create.add_argument('id');create.add_argument('--targets',type=Path,required=True)
     create.add_argument('--keyword',required=True);create.add_argument('--message',required=True)
     create.add_argument('--skip',action='append',default=[]);create.add_argument('--dedupe-text',action='append',default=[])
+    create.add_argument('--exclude-author',action='append',default=[])
     args=parser.parse_args()
     if not args.account.startswith('ig-') or not all(c in '0123456789abcdef' for c in args.account[3:]):
         raise ValueError('Use an existing Instagram account workspace ID.')
@@ -25,7 +26,7 @@ def run():
     queue=PublicReplies(Store(folder,ROOT/'.env'))
     if args.command=='create':
         data=json.loads(args.targets.read_text())
-        result=queue.create(args.id,data['media_id'],args.keyword,args.message,data['matching'],args.skip,dedupe_texts=args.dedupe_text)
+        result=queue.create(args.id,data['media_id'],args.keyword,args.message,data['matching'],args.skip,dedupe_texts=args.dedupe_text,excluded_authors=args.exclude_author)
     elif args.command=='status':result=queue.status()
     else:result=queue.control(args.id,args.command)
     print(json.dumps(result,ensure_ascii=False,indent=2))

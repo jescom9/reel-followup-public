@@ -8,7 +8,7 @@ class PublicReplyTests(unittest.TestCase):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
         root=Path(self.tmp.name);self.store=Store(root/'account',root/'.env');self.addCleanup(self.store.db.close)
         self.store.config.update(account_id='123',username='owner',account_aliases=['alias'],verified=True,enabled=True)
-        self.now=100;self.posts=[];self.owner='alias';self.text='FIT';self.replies=[];self.failure=None
+        self.now=100;self.posts=[];self.owner='alias';self.text='FIT';self.replies=[];self.failure=None;self.author='reader'
         class API:
             def call(_,method,path,data=None,**query):
                 if method=='POST':
@@ -16,7 +16,7 @@ class PublicReplyTests(unittest.TestCase):
                     if self.failure:raise self.failure
                     return {'id':'receipt'}
                 if path=='456':return {'id':'456','owner':{'id':self.owner}}
-                if path=='789':return {'id':'789','text':self.text,'media':{'id':'456'}}
+                if path=='789':return {'id':'789','text':self.text,'media':{'id':'456'},'from':{'username':self.author}}
                 return {'data':self.replies}
         self.factory=lambda config:API();self.queue=PublicReplies(self.store,self.factory,lambda:self.now)
         self.queue.create('batch','456','fit','Approved reply',[{'id':'789','text':'fit'}])
@@ -49,6 +49,9 @@ class PublicReplyTests(unittest.TestCase):
         self.assertEqual(self.state()['counts'],{'skipped':1});self.assertEqual(self.posts,[])
     def test_mention_prefix_existing_reply_is_not_duplicated(self):
         self.replies=[{'text':'@someone Approved reply'}];self.queue.run_one(self.store.config)
+        self.assertEqual(self.state()['counts'],{'skipped':1});self.assertEqual(self.posts,[])
+    def test_sender_comments_are_skipped_to_prevent_reply_loops(self):
+        self.author='owner';self.queue.run_one(self.store.config)
         self.assertEqual(self.state()['counts'],{'skipped':1});self.assertEqual(self.posts,[])
     def test_pause_and_account_pause_prevent_sends(self):
         self.queue.control('batch','pause');self.assertFalse(self.queue.run_one(self.store.config))

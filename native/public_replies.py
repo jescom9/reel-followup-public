@@ -10,7 +10,7 @@ class PublicReplies:
         store.execute('''CREATE TABLE IF NOT EXISTS public_reply_batches (
             id TEXT PRIMARY KEY, account_id TEXT NOT NULL, media_id TEXT NOT NULL,
             keyword TEXT NOT NULL, message TEXT NOT NULL, state TEXT NOT NULL,
-            next_at REAL NOT NULL, interval_seconds REAL NOT NULL, detail TEXT NOT NULL, dedupe_texts TEXT NOT NULL)''')
+            next_at REAL NOT NULL, interval_seconds REAL NOT NULL, detail TEXT NOT NULL, dedupe_texts TEXT NOT NULL, excluded_authors TEXT NOT NULL)''')
         store.execute('''CREATE TABLE IF NOT EXISTS public_reply_jobs (
             batch_id TEXT NOT NULL, comment_id TEXT NOT NULL, state TEXT NOT NULL,
             receipt TEXT NOT NULL DEFAULT '{}', detail TEXT NOT NULL DEFAULT '',
@@ -19,7 +19,7 @@ class PublicReplies:
             store.execute("UPDATE public_reply_batches SET state='paused',detail='Interrupted send requires review.' WHERE id IN (SELECT batch_id FROM public_reply_jobs WHERE state='sending')")
             store.execute("UPDATE public_reply_jobs SET state='review',detail='Interrupted send; inspect Instagram before retrying.' WHERE state='sending'")
 
-    def create(self, identifier, media_id, keyword, message, targets, skip=(), interval=30, dedupe_texts=()):
+    def create(self, identifier, media_id, keyword, message, targets, skip=(), interval=30, dedupe_texts=(), excluded_authors=()):
         if not identifier or not str(media_id).isdigit() or not keyword.strip() or not message.strip():
             raise ValueError('Batch ID, media ID, keyword and message are required.')
         if interval < 30:
@@ -37,8 +37,8 @@ class PublicReplies:
         pattern = re.compile(r'(?<!\w)' + re.escape(keyword) + r'(?!\w)', re.I)
         # The paused batch cannot send until all targets are committed and explicitly resumed.
         with self.s.lock, self.s.db:
-            self.s.db.execute('INSERT INTO public_reply_batches VALUES (?,?,?,?,?,?,?,?,?,?)',
-                       (identifier, *contract, 'paused', 0, interval, 'Ready for explicit resume.', json.dumps(list(dedupe_texts))))
+            self.s.db.execute('INSERT INTO public_reply_batches VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+                       (identifier, *contract, 'paused', 0, interval, 'Ready for explicit resume.', json.dumps(list(dedupe_texts)), json.dumps(list(excluded_authors))))
             for target in targets:
                 cid = str(target['id'])
                 if not cid.isdigit() or not pattern.search(target.get('text','')):
@@ -82,10 +82,14 @@ class PublicReplies:
             owner = media.get('owner',{}); owner = owner.get('id') if isinstance(owner,dict) else owner
             if str(owner) not in {str(config['account_id']), *map(str,config.get('account_aliases',[]))}:
                 self.pause(identifier,'Sender does not own this media.'); return True
-            comment = api.call('GET',cid,fields='id,text,media')
+            comment = api.call('GET',cid,fields='id,text,media,from')
             actual_media = comment.get('media',{}); actual_media = actual_media.get('id') if isinstance(actual_media,dict) else actual_media
             if str(comment.get('id')) != cid or str(actual_media) != batch['media_id']:
                 self.pause(identifier,'Comment identity or media differs from the approved target.'); return True
+            author = comment.get('from',{})
+            excluded = {config.get('username','').lower(), *[str(v).lower() for v in json.loads(batch['excluded_authors'])]}
+            if author.get('username','').lower() in excluded or str(author.get('id','')) in {str(config['account_id']), *map(str,config.get('account_aliases',[]))}:
+                self.s.execute("UPDATE public_reply_jobs SET state='skipped',detail='Sender or excluded account comment.' WHERE batch_id=? AND comment_id=?",(identifier,cid)); return True
             if not re.search(r'(?<!\w)' + re.escape(batch['keyword']) + r'(?!\w)',comment.get('text',''),re.I):
                 self.s.execute("UPDATE public_reply_jobs SET state='skipped',detail='Keyword no longer matches.' WHERE batch_id=? AND comment_id=?",(identifier,cid)); return True
             approved = {batch['message'], *json.loads(batch['dedupe_texts'])}
