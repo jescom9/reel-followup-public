@@ -46,3 +46,18 @@ Start a new agent session if needed, then invoke `$reel-followup-pi`. Other agen
 Example request:
 
 > Use $reel-followup-pi to set up my new test Pi over the SSH target I provide. Keep SQLite as the default, enroll Tailscale, run the isolated self-test, and add a paused Setup test campaign. Report the commit, SQLite backend, worker PID and campaign ID, then reconnect to verify the service survived. Preserve the existing production Pi.
+
+## Public reply batches
+
+A public reply batch runs inside the existing Python worker and stores its progress in the selected account's SQLite database. Create it from a private JSON file with `media_id` and a `matching` array containing comment `id` and `text` fields. It starts paused:
+
+```sh
+python3 scripts/public-replies.py --account PROFILE_ID create BATCH_ID \
+  --targets /private/path/comments.json --keyword FIT \
+  --message 'Your approved public reply'
+python3 scripts/public-replies.py --account PROFILE_ID resume BATCH_ID
+python3 scripts/public-replies.py --account PROFILE_ID status
+python3 scripts/public-replies.py --account PROFILE_ID pause BATCH_ID
+```
+
+The sender must own the media and have an enabled, verified workspace. Each target is checked live for the keyword and an existing identical reply. Use `--skip COMMENT_ID` for a confirmed prior reply, or `--dedupe-text 'Previously approved text'` to recognize an earlier version. Targets are paced at least 30 seconds apart. Meta rejection, unavailable reads, missing receipts and interrupted sends pause the batch for inspection; uncertain sends are never automatically repeated. No client connection is needed while it runs. These are public comments; the separate DM reply window does not determine public batch eligibility.

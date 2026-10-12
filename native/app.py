@@ -16,6 +16,7 @@ try:
     from .neon_http import NeonHTTP
     from .storage import backend_name,delivery_mode
     from .token_vault import TokenVault
+    from .public_replies import PublicReplies
 except ImportError:
     from followup import NeonBridge, ArchiveError, PHRASE, TEXT, RULE, deliver, message_page
     from manychat import ManychatFlow
@@ -25,6 +26,7 @@ except ImportError:
     from neon_http import NeonHTTP
     from storage import backend_name,delivery_mode
     from token_vault import TokenVault
+    from public_replies import PublicReplies
 
 ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = ROOT.parent
@@ -246,9 +248,11 @@ class Engine:
         self.manychat.checks=self.checks
         self.workflows=WorkflowEngine(store,graph_factory,self.manychat,clock)
         self.next_workflow_check=0
+        self.public_replies=PublicReplies(store,graph_factory,clock,recover=True)
     def run_one(self):
         c = dict(self.s.config)
         if not (c['enabled'] and c['verified']): return False
+        if self.public_replies.run_one(c): return True
         if c.get('workflow_mode')=='manychat' and self.clock()>=self.next_workflow_check:
             self.next_workflow_check=self.clock()+2
             if self.workflows.run_one(c): return True
