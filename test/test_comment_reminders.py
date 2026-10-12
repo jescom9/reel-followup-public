@@ -33,6 +33,15 @@ class ReminderTests(unittest.TestCase):
         self.engine.run_one(self.c);self.assertEqual(self.reminder()['state'],'blocked')
         self.assertNotIn('rf-comment-reminder:business:rf-opening:alarm:reel:comment-user',self.store.actions)
 
+    def test_retired_collaboration_cannot_post_even_with_an_authorized_other_account(self):
+        self.comment('alarm');self.now+=86400
+        self.c['flows'][0]['comment_reminder_account']='default'
+        calls=len(self.api.calls)
+        self.engine.reply_resolver=lambda selected:({**self.c,'account_id':'other-account'},self.store.flow_once)
+        self.engine.reminders.run_one(self.c,self.c['flows'])
+        self.assertEqual(self.reminder()['state'],'blocked')
+        self.assertEqual(len(self.api.calls),calls)
+
     def test_enabling_reminders_does_not_notify_reused_old_openings(self):
         self.c['flows'][0]['comment_reminder_enabled']=False;self.comment('alarm')
         self.c['flows'][0]['comment_reminder_enabled']=True;self.now+=90000;self.comment('alarm','another-comment')

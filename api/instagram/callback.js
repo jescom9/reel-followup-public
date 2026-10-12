@@ -32,7 +32,7 @@ module.exports = async function callback(req, res) {
     if(!savedAccount.stored||savedAccount.account_id!==result.accountId)throw Error('Account was not saved.');
     res.setHeader('Set-Cookie',[stateCookie('',0),cookie(issue(result.accountId,cfg.stateSecret))]);
     const username=escape(result.username);
-    return html(res,200,`<h1>Connected as @${username}</h1><p>Your connection is saved in encrypted storage on the Raspberry Pi. Your access token stays on the server.</p><p>New account workspaces start paused. Review your campaigns before activating them.</p><p><a href="/dashboard/">Open my dashboard</a></p>`);
+    return html(res,200,`<h1>Connected as @${username}</h1><p>Your connection is saved in encrypted storage on the Raspberry Pi. Your access token stays on the server.</p><p>New account workspaces start paused. Review your campaigns before activating them.</p><p>Open your private Pi dashboard through an SSH tunnel to manage this account.</p>`);
   } catch (error) {
     return html(res, 400, `<h1>Could not finish Instagram login</h1><p>The connection could not be saved on the Pi. No token will be displayed. Please try again.</p><p>Check the exact redirect URL, app review/tester access, and granted permissions, then try again.</p>`);
   }

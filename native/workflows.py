@@ -12,7 +12,12 @@ except ImportError:
 DEFAULT_FOLLOWUP='Hi, ich hoffe, dir hat’s geholfen. Teile dein Ergebnis gerne mit deinen Freunden.'
 
 def flows(config):
-    if 'flows' in config:return [{**{'comment_reminder_enabled':False,'comment_reminder_after_hours':24,'comment_reminder_text':DEFAULT_TEXT,'comment_reminder_account':'self'},**f} for f in config['flows']]
+    if 'flows' in config:
+        items=[{**{'comment_reminder_enabled':False,'comment_reminder_after_hours':24,'comment_reminder_text':DEFAULT_TEXT,'comment_reminder_account':'self'},**f} for f in config['flows']]
+        for item in items:
+            if item['comment_reminder_account']!='self':
+                item.update(comment_reminder_account='self',comment_reminder_enabled=False)
+        return items
     return [{'id':'legacy','name':'Reel link','keywords':[config.get('keyword') or 'Fit'],
         'enabled':True,'require_follow':True,'link_button':False,'link_url':config.get('link_url') or LINK,
         'opening_text':OPENING if config.get('username')=='jescojm' else 'Tippe auf Following, nachdem du meinem Account folgst 👇',
@@ -57,7 +62,7 @@ def validate_flows(items):
         text=str(item.get('comment_reminder_text') or DEFAULT_TEXT).strip()
         if not 1<=len(text)<=300:raise ValueError('Reminder text must be 1–300 characters.')
         sender=str(item.get('comment_reminder_account') or 'self')
-        if sender not in ('self','default') and not re.fullmatch(r'ig-[0-9a-f]{20}',sender):raise ValueError('Choose a connected reminder account.')
+        if sender!='self':raise ValueError('Comment reminders must use this Instagram account. Cross-account collaboration is no longer supported.')
         entry.update(comment_reminder_enabled=reminder,comment_reminder_after_hours=hours,comment_reminder_text=text,comment_reminder_account=sender)
         result.append(entry)
     return result

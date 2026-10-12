@@ -6,13 +6,13 @@ try:
     from .profiles import read_values
     from .workflows import flows,validate_flows
     from .webhook_queue import queued_event
-    from . import hosted_history
+    from . import hosted_history,hosted_metrics,hosted_activity
     from .storage import StorageBridge,backend_name
 except ImportError:
     from profiles import read_values
     from workflows import flows,validate_flows
     from webhook_queue import queued_event
-    import hosted_history
+    import hosted_history,hosted_metrics,hosted_activity
     from storage import StorageBridge,backend_name
 
 class HostService:
@@ -61,7 +61,12 @@ class HostService:
                 with StorageBridge(app.store.env_file,app.store.folder):pass
                 history=hosted_history.summary(app.store)
             return {'username':config['username'],'account_id':config['account_id'],'enabled':config['enabled'],'flows':flows(config),
-                'history':history,'reserved':self.reserved(config),'credentials':{'stored':bool(app.store.vault.get()),'expires_at':config.get('token_expires_at',0)}}
+                'metrics':hosted_metrics.summary(app.store,flows(config),include_legacy=history is not None),'history':history,'reserved':self.reserved(config),'credentials':{'stored':bool(app.store.vault.get()),'expires_at':config.get('token_expires_at',0)}}
+        if op=='activity.list':
+            local=backend_name(app.store.env_file)=='sqlite'
+            if local:
+                with StorageBridge(app.store.env_file,app.store.folder):pass
+            return hosted_activity.list_activity(app.store,flows(config),value,local_history=local)
         if op in ('archive.list','archive.conversation'):
             if backend_name(app.store.env_file)!='sqlite':raise ValueError('This archive is available in the private Pi dashboard. Contact the host to enable it here.')
             with StorageBridge(app.store.env_file,app.store.folder):pass

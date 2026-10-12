@@ -31,6 +31,18 @@ class WorkflowTests(unittest.TestCase):
     def click(self,fid='alarm',key='click'):
         return self.engine.process(key,button('RF_FOLLOW:'+fid),self.c)
     def tearDown(self):self.store.db.close()
+    def test_cross_account_collaboration_settings_are_rejected_and_old_flows_are_paused(self):
+        from native.workflows import flows
+        for sender in ['default','ig-'+'a'*20]:
+            item={**self.c['flows'][0],'comment_reminder_enabled':True,'comment_reminder_account':sender}
+            with self.assertRaisesRegex(ValueError,'Cross-account collaboration'):
+                validate_flows([item])
+            restored=flows({**self.c,'flows':[item]})[0]
+            self.assertEqual(restored['comment_reminder_account'],'self')
+            self.assertFalse(restored['comment_reminder_enabled'])
+            self.assertTrue(restored['enabled'])
+        self.assertEqual(validate_flows([{**self.c['flows'][0],'comment_reminder_account':'self'}])[0]['comment_reminder_account'],'self')
+
     def test_distinct_keywords_have_distinct_destinations_and_follow_requirements(self):
         self.comment('alarm');self.assertFalse(any(c[0]=='url' for c in self.api.calls))
         self.click();self.assertEqual(self.api.calls[-1][-1],'https://example.test/alarm')

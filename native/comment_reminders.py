@@ -28,6 +28,8 @@ class CommentReminders:
         rows=self.store.execute("SELECT * FROM comment_reminders WHERE state='waiting' AND next_at<=? AND flow_id IN ("+placeholders+") ORDER BY next_at LIMIT 1",[now,*identifiers])
         if not rows:return False
         job=rows[0];key=job['opening_key'];flow=next(f for f in active if f['id']==job['flow_id'])
+        if flow.get('comment_reminder_account','self')!='self':
+            self.finish(key,'blocked','Cross-account collaboration is no longer supported. Use this Instagram account.');return True
         # Honour edited delays before claiming a public reply.
         due=job['opened_at']+flow.get('comment_reminder_after_hours',24)*3600
         if due>now:self.store.execute('UPDATE comment_reminders SET next_at=? WHERE opening_key=?',(due,key));return True

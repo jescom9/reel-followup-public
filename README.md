@@ -1,8 +1,12 @@
 <img src="assets/reel-followup.png" alt="Reel Follow-up" width="120">
 
-# Reel Follow-up
+# Reel Follow-up — public self-hosted edition
 
 An MIT-licensed Instagram keyword-to-DM bot with editable links, follower checks, follow-ups, pause controls and multiple account workspaces. Run it on a Raspberry Pi or Mac. The bot uses Python with cryptography for token encryption and **local SQLite by default**. Neon is optional.
+
+## Repository boundary
+
+This public repository contains the self-hosted Python app, its private local dashboard, setup tools, tests and a connector kit for your own Meta app. The managed customer dashboard, paid-service landing page, assisted-setup waitlist, operator legal pages and customer account-control API are maintained in the separate private service repository. Deploying this repository does not deploy the managed website.
 
 ## Choose your setup
 
@@ -37,7 +41,7 @@ Campaigns added through the CLI start paused. Configure messages and follow-ups 
 
 ## Your own Vercel connector
 
-Deploy this repository to your own Vercel project and set `IG_APP_ID`, `IG_APP_SECRET`, `LOGIN_STATE_SECRET` and your exact `IG_REDIRECT_URI`. Register that redirect in your own Meta app. Open your deployment's `/connect/` page to authorize Instagram. Set `REEL_CONNECTOR_URL` on the Pi to that page. Publish only the signed webhook listener; keep the dashboard private through SSH.
+Deploy this repository to your own Vercel project and set `IG_APP_ID`, `IG_APP_SECRET`, `LOGIN_STATE_SECRET` and your exact `IG_REDIRECT_URI`. Register that redirect in your own Meta app. Configure the authenticated Pi bridge using [the secure connection guide](docs/secure-instagram-connection.md), then open your deployment's `/connect/` page. Set `REEL_CONNECTOR_URL` on the Pi to that page. Publish only the signed webhook listener; keep the local dashboard private through SSH. The connector saves credentials directly on your Pi and does not include a hosted customer dashboard.
 
 Meta permissions, app access levels and reply windows apply. The operator completes required consent and approvals. Self-hosting does not grant access to the Reel Follow-up operator's Meta app. Configuration and data in `.env` and `native/.local/` stay private; the source contains no installed credentials or private host data. Some internal IDs and archive matching rules preserve compatibility with earlier installations.
 
@@ -48,6 +52,6 @@ python3 -m unittest discover -s test -p 'test_*.py'
 node --test
 ```
 
-Node and `pnpm install` are needed for Vercel development/tests, not the Pi bot. Optional waitlist hosting uses a separate restricted `WAITLIST_DATABASE_URL`; it is never required by the Pi. See [waitlist operator setup](docs/waitlist-operator.md).
+Node and `pnpm install` are needed for Vercel development/tests, not the Pi bot. The paid-service waitlist and its database are excluded from this edition. Independent operators supply their own provider details and privacy notices.
 
 [Follow @reelfollowup](https://www.instagram.com/reelfollowup) · [Public tutorial](https://reel-followup.vercel.app/tutorial/) · [Assisted setup waitlist](https://reel-followup.vercel.app/waitlist/)

@@ -80,7 +80,8 @@ class AccountRegistry:
     def ingest(self,body):
         for app in list(self.apps.values()):app.store.ingest(body)
     def reply_sender(self,selected,source):
-        target=source if selected=='self' else self.get(selected)
+        if selected!='self':raise ValueError('Comment reminders must use this Instagram account.')
+        target=source
         if not target.store.config.get('verified'):raise ValueError('The reminder sender is not verified.')
         if not target.store.config.get('enabled'):raise ValueError('The reminder sender workspace is paused.')
         return dict(target.store.config),target.store.flow_once

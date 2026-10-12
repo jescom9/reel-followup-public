@@ -163,7 +163,6 @@ function renderWorkflows(items,stats){
       const card=$('#flow-template').content.firstElementChild.cloneNode(true);card.dataset.id=flow.id;
       for(const name of flowFields){card.querySelector(`[name="${name}"]`).value=name==='keywords' ? flow.keywords.join(', ') : (flow[name] ?? (name==='comment_reminder_after_hours' ? 24 : name==='comment_reminder_text' ? 'Hey, this is the official account. Check your DMs or find our link in the bio.' : ''));}
       for(const name of ['require_follow','link_button','public_reply','comment_reminder_enabled'])card.querySelector(`[name="${name}"]`).checked=flow[name];
-      const sender=card.querySelector('[name=comment_reminder_account]');sender.replaceChildren(new Option('This account','self'),...connectedAccounts.map(a=>new Option('@'+a.username,a.profile_id)));sender.value=flow.comment_reminder_account || 'self';
       card.querySelector('.flow-title').textContent=flow.name;
       card.querySelector('.flow-toggle').textContent=flow.enabled?'Pause flow':'Resume flow';
       card.querySelector('.followup-toggle').textContent=flow.followup_enabled?'Pause follow-ups':'Resume follow-ups';
@@ -186,7 +185,7 @@ function collectFlows(){return [...$('#workflow-list').children].map(card=>{
   const prior=savedFlows.find(f=>f.id===card.dataset.id)||{enabled:false,followup_enabled:true};
   const flow={id:card.dataset.id,enabled:prior.enabled,followup_enabled:prior.followup_enabled};
   for(const name of flowFields)flow[name]=card.querySelector(`[name="${name}"]`).value;
-  flow.keywords=flow.keywords.split(',').map(word=>word.trim());flow.followup_delay_minutes=Number(flow.followup_delay_minutes);flow.comment_reminder_after_hours=Number(flow.comment_reminder_after_hours);flow.comment_reminder_account=card.querySelector('[name=comment_reminder_account]').value;
+  flow.keywords=flow.keywords.split(',').map(word=>word.trim());flow.followup_delay_minutes=Number(flow.followup_delay_minutes);flow.comment_reminder_after_hours=Number(flow.comment_reminder_after_hours);flow.comment_reminder_account='self';
   for(const name of ['require_follow','link_button','public_reply','comment_reminder_enabled'])flow[name]=card.querySelector(`[name="${name}"]`).checked;
   return flow;
 });}
