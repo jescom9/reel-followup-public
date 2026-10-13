@@ -23,3 +23,6 @@ docs/pi-live-deployment.md
 docs/pi-remote-maintenance.md
 docs/campaign-activation.md
 docs/validation.md
+
+waitlist/
+api/waitlist.mjs

@@ -13,6 +13,7 @@ try:
     from .follower_checks import FollowerChecks
     from .workflows import WorkflowEngine,flows,validate_flows
     from .hosted_media import verify_new_selections
+    from .historical_comments import HistoricalComments
     from .webhook_queue import queued_event
     from .neon_http import NeonHTTP
     from .storage import backend_name,delivery_mode
@@ -24,6 +25,7 @@ except ImportError:
     from follower_checks import FollowerChecks
     from workflows import WorkflowEngine,flows,validate_flows
     from hosted_media import verify_new_selections
+    from historical_comments import HistoricalComments
     from webhook_queue import queued_event
     from neon_http import NeonHTTP
     from storage import backend_name,delivery_mode
@@ -251,10 +253,12 @@ class Engine:
         self.workflows=WorkflowEngine(store,graph_factory,self.manychat,clock)
         self.next_workflow_check=0
         self.public_replies=PublicReplies(store,graph_factory,clock,recover=True)
+        self.historical=HistoricalComments(store,graph_factory,self.workflows,clock,recover=True)
     def run_one(self):
         c = dict(self.s.config)
         if not (c['enabled'] and c['verified']): return False
         if self.public_replies.run_one(c): return True
+        if self.historical.run_one(c): return True
         if c.get('workflow_mode')=='manychat' and self.clock()>=self.next_workflow_check:
             self.next_workflow_check=self.clock()+2
             if self.workflows.run_one(c): return True
@@ -331,6 +335,9 @@ class Engine:
 class App:
     def __init__(self, folder=DATA,env_file=None):
         self.store = Store(folder,env_file); self.nonce = secrets.token_urlsafe(32); self.stop = threading.Event()
+        self.lifecycle=threading.RLock()
+        self.threads=[]
+        self.thread_lock=threading.Lock()
         self.engine = Engine(self.store)
         self.next_poll = 0
         self.poll_status = 'Waiting for campaign to be enabled.'
@@ -342,6 +349,11 @@ class App:
         self.dashboard_lock = threading.Lock()
         self.dashboard = {'state':'loading','stats':{},'rows':[],'total':0,'page':0}
         self.webhook_status={'state':'idle','detail':'Webhook service is paused.','stats':{},'url':self.webhook_url}
+    def start_task(self,task):
+        with self.thread_lock:
+            if self.stop.is_set():return
+            self.threads=[t for t in self.threads if t.is_alive()]
+            thread=threading.Thread(target=task,daemon=True);self.threads.append(thread);thread.start()
     @property
     def webhook_url(self):
         values=read_env(self.store.env_file)
@@ -421,7 +433,7 @@ class App:
             except Exception as error:
                 self.followup.update(state='error',detail=str(error) if isinstance(error,(MetaError,ValueError,ArchiveError)) else 'The batch stopped. Saved delivery receipts prevent duplicate sends.')
             self.refresh_dashboard()
-        threading.Thread(target=run,daemon=True).start()
+        self.start_task(run)
         return True
     def sync_chat_history(self):
         c = dict(self.store.config)
@@ -555,7 +567,7 @@ class App:
                 detail = str(e) if isinstance(e, (MetaError, ValueError, ArchiveError)) else 'Sync stopped. Previously saved pages remain in Neon; check the local connection and retry.'
                 self.archive = {**self.archive,'state':'error','detail':detail,'updated':time.time()}
             self.refresh_dashboard()
-        threading.Thread(target=run,daemon=True).start()
+        self.start_task(run)
         return True
     def poll_comments(self):
         c = dict(self.store.config)

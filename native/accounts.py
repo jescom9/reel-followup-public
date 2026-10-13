@@ -2,6 +2,7 @@
 import threading
 import time
 import re
+import shutil
 from pathlib import Path
 try:
     from .profiles import Profiles,read_values
@@ -58,6 +59,7 @@ class AccountRegistry:
             subscribed=self.graph({**root,'access_token':token}).call('POST',str(profile['user_id'])+'/subscribed_apps',{'subscribed_fields':'comments,messages,messaging_postbacks'})
             if subscribed.get('success') is not True:raise ValueError('Webhook subscription was not confirmed.')
             existing=self.find_account(profile['user_id'])
+            if existing and existing[1].stop.is_set():raise ValueError('Account deletion is still finishing. Try again shortly.')
             expiry=float(data.get('expires_at') or 0)
             if existing:
                 identifier,app=existing
@@ -66,10 +68,36 @@ class AccountRegistry:
             else:
                 identifier=self.profiles.create({'access_token':token,'app_id':root['app_id'],'expires_at':expiry},profile)
                 app=self.load(identifier)
-                app.store.save({**app.store.config,'token_expires_at':expiry,'webhook_verified':True})
+                app.store.save({**app.store.config,'token_expires_at':expiry,'webhook_verified':True,'session_not_before':int(time.time())})
             return {'profile_id':identifier,'account_id':str(profile['user_id']),'username':profile['username'],'stored':True,'enabled':app.store.config['enabled']}
+    def delete_hosted(self,identifier,username):
+        with self.lock:
+            app=self.get(identifier)
+            try:
+                from .storage import backend_name
+            except ImportError:
+                from storage import backend_name
+            if backend_name(app.store.env_file)!='sqlite':raise ValueError('Ask the operator to delete this external-storage workspace.')
+            if identifier=='default':raise ValueError('The host account must be removed by its operator.')
+            if not isinstance(username,str) or username!=app.store.config['username']:raise ValueError('Type the account username exactly to confirm deletion.')
+            if app.store.config.get('managed_plan',{}).get('subscription_id'):raise ValueError('Cancel the subscription from Plans before deleting this workspace.')
+            app.store.save({**app.store.config,'enabled':False})
+            app.stop.set()
+            with app.thread_lock:threads=list(app.threads)
+        # Do not hold the registry lock while workers finish an in-flight operation.
+        deadline=time.monotonic()+12
+        for thread in threads:thread.join(max(0,deadline-time.monotonic()))
+        if any(thread.is_alive() for thread in threads):raise ValueError('Automation is paused. Deletion is waiting for an in-flight request; try Delete again shortly.')
+        with self.lock:
+            folder=app.store.folder.resolve()
+            if folder.parent!=self.profiles.folder.resolve():raise ValueError('Invalid workspace location.')
+            with app.store.lock:
+                app.store.db.close()
+                shutil.rmtree(folder)
+            del self.apps[identifier]
+        return {'deleted':True}
     def start_app(self,app):
-        for task in [app.worker,app.archive_worker,app.dashboard_worker,app.webhook_worker]:threading.Thread(target=task,daemon=True).start()
+        for task in [app.worker,app.archive_worker,app.dashboard_worker,app.webhook_worker]:app.start_task(task)
     def start(self):
         with self.lock:
             if self.running:return

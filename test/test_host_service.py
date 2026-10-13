@@ -134,3 +134,28 @@ class HostTests(unittest.TestCase):
         app.store.save({**app.store.config,'enabled':False})
         paused=hosted_activity.list_activity(app.store,flows(app.store.config),{},now=990)['batches'][0]
         self.assertEqual(paused['status'],'paused_account');self.assertIsNone(paused['estimate_seconds'])
+
+    def test_delete_confirmation_is_scoped_and_removes_the_whole_workspace(self):
+        one=self.connect('123');two=self.connect('222');folder=self.registry.get(one['profile_id']).store.folder
+        other=self.registry.get(two['profile_id']).store.folder
+        (folder/'private-notes.json').write_text('private')
+        request={'account_id':'123','operation':'account.delete'}
+        with self.assertRaises(ValueError):self.host.handle('/host/portal',{**request,'data':{'username':'wrong','account_id':'222'}})
+        self.assertTrue(folder.exists())
+        result=self.host.handle('/host/portal',{**request,'data':{'username':'creator','account_id':'222'}})
+        self.assertTrue(result['deleted']);self.assertFalse(folder.exists());self.assertTrue(other.exists());self.assertIsNone(self.registry.find_account('123'))
+        self.assertFalse(self.host.handle('/host/events',{'account_id':'123','events':[]})['managed'])
+        reconnect=self.connect('123');self.assertFalse(reconnect['enabled'])
+        self.assertEqual(self.host.handle('/host/portal',{'account_id':'123','operation':'status'})['plan']['name'],'free')
+        with self.assertRaises(ValueError):self.host.handle('/host/portal',{'account_id':'123','session_issued_at':0,'operation':'status'})
+
+    def test_deletion_waits_for_inflight_writer_and_can_be_retried(self):
+        from unittest.mock import Mock
+        one=self.connect('123');app=self.registry.get(one['profile_id']);folder=app.store.folder
+        busy=Mock();busy.is_alive.return_value=True;app.threads=[busy]
+        request={'account_id':'123','operation':'account.delete','data':{'username':'creator'}}
+        with self.assertRaisesRegex(ValueError,'in-flight'):self.host.handle('/host/portal',request)
+        self.assertTrue(folder.exists());self.assertFalse(app.store.config['enabled']);self.assertTrue(app.stop.is_set())
+        with self.assertRaises(ValueError):self.host.handle('/host/portal',{'account_id':'123','operation':'account.toggle','data':{'enabled':True}})
+        busy.is_alive.return_value=False
+        self.assertTrue(self.host.handle('/host/portal',request)['deleted']);self.assertFalse(folder.exists())

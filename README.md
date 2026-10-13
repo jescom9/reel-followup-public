@@ -6,13 +6,13 @@ An MIT-licensed Instagram keyword-to-DM bot with editable links, follower checks
 
 ## Repository boundary
 
-This public repository contains the self-hosted Python app, its private local dashboard, setup tools, tests and a connector kit for your own Meta app. The managed customer dashboard, paid-service landing page, assisted-setup waitlist, operator legal pages and customer account-control API are maintained in the separate private service repository. Deploying this repository does not deploy the managed website.
+This public repository contains the self-hosted Python app, its private local dashboard, setup tools, tests and a connector kit for your own Meta app. The managed customer dashboard, paid-service landing page, operator legal pages and customer account-control API are maintained in the separate private service repository. Deploying this repository does not deploy the managed website.
 
 ## Choose your setup
 
 **Self-host now:** create your own Meta developer app and authorize your own Instagram Business or Creator account. Use your app ID, app secret, account token and signed HTTPS webhook callback. A copied token from someone else's app alone is not a complete independent installation. Follow [the Meta app guide](docs/self-host-meta.md) and [the Raspberry Pi tutorial](docs/raspberry-pi.md).
 
-**Prefer assisted setup?** Join [the Reel Follow-up waitlist](https://reelfollowups.app/waitlist/) for agent-assisted installation and a service-managed Meta connection. Assisted installation remains waitlisted; eligible accounts can use the secure hosted connection. Joining the waitlist does not authorize Instagram or start messaging.
+**Prefer the managed website?** [Sign in with Instagram](https://reelfollowups.app/connect/) to manage flows on Reelfollowups.
 
 ## Test a fresh Pi
 

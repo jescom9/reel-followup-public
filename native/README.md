@@ -37,3 +37,7 @@ Reminders are posted only by the account that owns the flow and media. Cross-acc
 ## Reel targeting
 
 Keyword flows default to `media_scope: "all"`, including future Reels. A flow can use `media_scope: "selected"` with a nonempty `media_ids` array of up to 50 owned Instagram Reel IDs. The worker matches both keyword and Reel before attempting an opening. The managed website includes an Instagram API thumbnail picker; local editor saves preserve existing targeting. Creating or changing selections verifies ownership. Identical keywords may be used by different flows when their selected Reel sets do not overlap.
+
+## Launching after comments have already arrived
+
+The managed editor can preview and launch earlier keyword comments from the selected Reels. The shared worker stores the reviewed snapshot in the account’s SQLite database, sends at most one launch notice per person, and paces work at one comment per minute. Initial DMs remain limited to seven days after the comment; older comments get the reviewed public invitation to comment again. An accepted opening is required before “check your DMs” is posted, and following is still checked before the link is delivered. Unknown send outcomes pause the run for review rather than retrying.

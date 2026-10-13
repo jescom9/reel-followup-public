@@ -4,9 +4,11 @@ from datetime import datetime
 from urllib.parse import urlsplit
 try:
     from .manychat import OPENING,LINK,PUBLIC_REPLY
+    from .plans import admit
     from .comment_reminders import CommentReminders,DEFAULT_TEXT
 except ImportError:
     from manychat import OPENING,LINK,PUBLIC_REPLY
+    from plans import admit
     from comment_reminders import CommentReminders,DEFAULT_TEXT
 
 DEFAULT_FOLLOWUP='Hi, ich hoffe, dir hat’s geholfen. Teile dein Ergebnis gerne mit deinen Freunden.'
@@ -158,6 +160,7 @@ class WorkflowEngine:
             comment=api.call('GET',str(value['id']),fields='timestamp')
             created=datetime.fromisoformat(comment['timestamp'].replace('Z','+00:00')).timestamp()
             if not 0<=now-created<7*86400:return 'Comment outside the private-reply window.'
+            if not admit(self.store,sender):return 'Contact limit reached. Upgrade from Plans to admit new contacts.'
             fid=flow['id'];opening_key=f'mc-opening:v1:{media}:{sender}' if fid=='legacy' else f'rf-opening:{fid}:{media}:{sender}'
             accepted=False
             def opening(action):

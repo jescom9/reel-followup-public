@@ -6,13 +6,13 @@ try:
     from .profiles import read_values
     from .workflows import flows,validate_flows
     from .webhook_queue import queued_event
-    from . import hosted_history,hosted_metrics,hosted_activity,hosted_media
+    from . import hosted_history,hosted_metrics,hosted_activity,hosted_media,plans
     from .storage import StorageBridge,backend_name
 except ImportError:
     from profiles import read_values
     from workflows import flows,validate_flows
     from webhook_queue import queued_event
-    import hosted_history,hosted_metrics,hosted_activity,hosted_media
+    import hosted_history,hosted_metrics,hosted_activity,hosted_media,plans
     from storage import StorageBridge,backend_name
 
 class HostService:
@@ -54,20 +54,41 @@ class HostService:
                 key,payload=queued_event(incoming,app.store.config['account_id']);app.store.enqueue(key,payload)
             return {'managed':True,'saved':len(items)}
         if path!='/host/portal' or not found:raise ValueError('Account is not connected on this host.')
-        identifier,app=found;config=dict(app.store.config);op=data.get('operation');value=data.get('data') or {}
+        identifier,app=found
+        with app.lifecycle:
+            if self.registry.find_account(str(data.get('account_id') or ''))!=found:raise ValueError('Account is no longer connected.')
+            return self.portal(identifier,app,data)
+    def portal(self,identifier,app,data):
+        config=dict(app.store.config);op=data.get('operation');value=data.get('data') or {}
+        if data.get('session_issued_at') is not None and data['session_issued_at']<config.get('session_not_before',0):raise ValueError('Sign in again to open this workspace.')
+        if app.stop.is_set() and op!='account.delete':raise ValueError('Account deletion is finishing. Try Delete again shortly.')
+        if op=='account.delete':return self.registry.delete_hosted(identifier,value.get('username'))
+        if op=='billing.apply':return {'plan':plans.apply(app.store,value)}
         if op=='status':
+            plan=plans.managed(app.store)
             history=None
             if backend_name(app.store.env_file)=='sqlite':
                 with StorageBridge(app.store.env_file,app.store.folder):pass
                 history=hosted_history.summary(app.store)
-            return {'username':config['username'],'account_id':config['account_id'],'enabled':config['enabled'],'flows':flows(config),
+            return {'plan':plan,'username':config['username'],'account_id':config['account_id'],'enabled':config['enabled'],'flows':flows(config),
                 'metrics':hosted_metrics.summary(app.store,flows(config),include_legacy=history is not None),'history':history,'reserved':self.reserved(config),'credentials':{'stored':bool(app.store.vault.get()),'expires_at':config.get('token_expires_at',0)}}
+        if op in ('history.preview','history.start','history.pause','history.status'):
+            queue=app.engine.historical
+            if op=='history.status':return {'runs':queue.status(config)}
+            flow=next((f for f in flows(config) if f['id']==value.get('flow_id')),None)
+            if not flow:raise ValueError('Save this flow before launching earlier comments.')
+            if op=='history.preview':
+                accounts=self.registry.listing()
+                return queue.preview(config,flow,value.get('old_text'),[a['username'] for a in accounts],[a['account_id'] for a in accounts])
+            return queue.control(config,value.get('run_id'), 'start' if op=='history.start' else 'pause',flow)
         if op=='media.list':return hosted_media.list_media(app,self.registry.graph,value)
         if op=='activity.list':
             local=backend_name(app.store.env_file)=='sqlite'
             if local:
                 with StorageBridge(app.store.env_file,app.store.folder):pass
-            return hosted_activity.list_activity(app.store,flows(config),value,local_history=local)
+            result=hosted_activity.list_activity(app.store,flows(config),value,local_history=local)
+            result['historical_runs']=app.engine.historical.status(config)
+            return result
         if op in ('archive.list','archive.conversation'):
             if backend_name(app.store.env_file)!='sqlite':raise ValueError('This archive is available in the private Pi dashboard. Contact the host to enable it here.')
             with StorageBridge(app.store.env_file,app.store.folder):pass
