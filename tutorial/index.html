@@ -2,7 +2,7 @@
 <html lang="en"><head><script src="/appearance.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><meta name="description" content="Run Reel Follow-up on a Raspberry Pi with SQLite, local SSH, Tailscale and a downloadable maintenance skill. Neon is optional."><title>Raspberry Pi tutorial · Reel Follow-up</title><link rel="icon" type="image/png" href="/assets/reel-followup.png"><link rel="stylesheet" href="/site.css"></head>
 <body><main class="card"><a class="brand" href="/" aria-label="Reel Follow-up home"><img src="/assets/reel-followup.png" alt="" width="96" height="96"><span>Reel Follow-up</span></a><p class="eyebrow">SELF-HOSTING TUTORIAL · VERSION 0.4</p>
 <h1>Run Reel Follow-up on your Raspberry Pi</h1>
-<p>The public self-hosting version requires <strong>your own Meta developer app</strong>. Prefer a service-managed connection? <a href="https://reelfollowups.app/waitlist/">Join the assisted setup waitlist</a>.</p>
+<p>The public self-hosting version requires <strong>your own Meta developer app</strong>. Prefer a service-managed connection? <a href="https://reelfollowups.app/connect/">Open the managed website</a>.</p>
 <p>Version 0.4 uses <strong>SQLite on the Pi by default</strong>. Events, chats, campaign jobs and delivery receipts stay local. Neon is optional. The bot needs Python 3.10+ and uses SQLite plus cryptography for token encryption; no Node runtime or Docker bot is required.</p>
 <h2>1 · Connect locally</h2>
 <p>Use 64-bit Raspberry Pi OS and a user with sudo access. In the Pi terminal:</p>
@@ -103,5 +103,5 @@ python3 scripts/reelctl.py update
 </code></pre>
 <p><code>update</code> requires a clean Git checkout, pulls with <code>--ff-only</code>, runs Python tests and restarts one worker. It preserves ignored configuration and databases. Public-source updates use anonymous HTTPS; no GitHub deploy key is required. See <a href="https://github.com/jescom9/reel-followup-public/blob/main/docs/agent-maintenance.md">the agent command guide</a>.</p>
 <p>Run unrelated home-security automation as a separate service. Reel Follow-up does not control cameras, locks or alarms.</p>
-<p><a href="https://reelfollowups.app/waitlist/">Managed website</a> · <a href="https://www.instagram.com/reelfollowup">Follow @reelfollowup</a> · <a href="https://github.com/jescom9/reel-followup-public">GitHub source</a></p>
+<p><a href="https://reelfollowups.app/connect/">Managed website</a> · <a href="https://www.instagram.com/reelfollowup">Follow @reelfollowup</a> · <a href="https://github.com/jescom9/reel-followup-public">GitHub source</a></p>
 <nav class="links"><a href="/connect/">Secure Instagram sign-in</a><a href="https://reelfollowups.app/connect/">Managed website</a><a href="https://github.com/jescom9/reel-followup-public">Public source</a></nav></main></body></html>

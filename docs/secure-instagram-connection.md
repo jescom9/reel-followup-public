@@ -1,6 +1,6 @@
 # Secure connection for your own Meta app
 
-The public edition includes a reusable Instagram OAuth connector. The managed customer dashboard, paid website and assisted-setup waitlist are in the separate private service repository.
+The public edition includes a reusable Instagram OAuth connector. The managed customer dashboard, paid website and managed onboarding are in the separate private service repository.
 
 1. Configure your own Instagram API Meta app and an eligible Business or Creator account. App permissions and access requirements apply.
 2. On your Pi, install `python3-cryptography` and run `bash scripts/setup-pi-hosted.sh`. This creates the shared bridge secret in the owner-only `.env` file. Do not print, commit or publish it.

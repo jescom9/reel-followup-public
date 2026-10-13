@@ -1,6 +1,6 @@
 # Run Reel Follow-up on your Raspberry Pi
 
-The public self-hosting version requires **your own Meta developer app**. Prefer a service-managed connection? [Join the assisted setup waitlist](https://reelfollowups.app/waitlist/).
+The public self-hosting version requires **your own Meta developer app**. Prefer a service-managed connection? [Open the managed website](https://reelfollowups.app/connect/).
 
 Version 0.4 uses **SQLite on the Pi by default**. Events, chats, campaign jobs and delivery receipts stay local. Neon is optional. The bot needs Python 3.10+ and uses SQLite plus cryptography for token encryption; no Node runtime or Docker bot is required.
 
@@ -172,4 +172,4 @@ python3 scripts/reelctl.py update
 
 Run unrelated home-security automation as a separate service. Reel Follow-up does not control cameras, locks or alarms.
 
-[Assisted setup waitlist](https://reelfollowups.app/waitlist/) · [Follow @reelfollowup](https://www.instagram.com/reelfollowup) · [GitHub source](https://github.com/jescom9/reel-followup-public)
+[Managed website](https://reelfollowups.app/connect/) · [Follow @reelfollowup](https://www.instagram.com/reelfollowup) · [GitHub source](https://github.com/jescom9/reel-followup-public)

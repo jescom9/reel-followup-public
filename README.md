@@ -52,6 +52,6 @@ python3 -m unittest discover -s test -p 'test_*.py'
 node --test
 ```
 
-Node and `pnpm install` are needed for Vercel development/tests, not the Pi bot. The paid-service waitlist and its database are excluded from this edition. Independent operators supply their own provider details and privacy notices.
+Node and `pnpm install` are needed for Vercel development/tests, not the Pi bot. The managed billing and account-control API are excluded from this edition. Independent operators supply their own provider details and privacy notices.
 
-[Follow @reelfollowup](https://www.instagram.com/reelfollowup) · [Public tutorial](https://reelfollowups.app/tutorial/) · [Assisted setup waitlist](https://reelfollowups.app/waitlist/)
+[Follow @reelfollowup](https://www.instagram.com/reelfollowup) · [Public tutorial](https://reelfollowups.app/tutorial/) · [Managed website](https://reelfollowups.app/connect/)
