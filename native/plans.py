@@ -3,11 +3,12 @@ import time,uuid
 
 def initialize(store):
     store.execute('CREATE TABLE IF NOT EXISTS plan_contacts (recipient_id TEXT PRIMARY KEY,created_at REAL NOT NULL)')
+    store.execute('CREATE TABLE IF NOT EXISTS plan_contact_aliases (alias TEXT PRIMARY KEY,recipient_id TEXT NOT NULL)')
     # Count existing automation contacts once across flows, including the legacy store.
-    store.execute('INSERT OR IGNORE INTO plan_contacts SELECT recipient_id,? FROM workflow_contacts WHERE opened=1',(time.time(),))
-    store.execute('INSERT OR IGNORE INTO plan_contacts SELECT id,? FROM contacts',(time.time(),))
+    store.execute('INSERT OR IGNORE INTO plan_contacts SELECT coalesce(a.recipient_id,w.recipient_id),? FROM workflow_contacts w LEFT JOIN plan_contact_aliases a ON a.alias=w.recipient_id WHERE w.opened=1',(time.time(),))
+    store.execute('INSERT OR IGNORE INTO plan_contacts SELECT coalesce(a.recipient_id,c.id),? FROM contacts c LEFT JOIN plan_contact_aliases a ON a.alias=c.id',(time.time(),))
     if store.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='local_flow_contacts'"):
-        store.execute('INSERT OR IGNORE INTO plan_contacts SELECT recipient_id,? FROM local_flow_contacts WHERE account_id=? AND (opened=1 OR link_sent=1)',(time.time(),str(store.config['account_id'])))
+        store.execute('INSERT OR IGNORE INTO plan_contacts SELECT coalesce(a.recipient_id,c.recipient_id),? FROM local_flow_contacts c LEFT JOIN plan_contact_aliases a ON a.alias=c.recipient_id WHERE c.account_id=? AND (c.opened=1 OR c.link_sent=1)',(time.time(),str(store.config['account_id'])))
 
 def managed(store):
     initialize(store)
@@ -26,6 +27,8 @@ def admit(store,recipient):
     if not getattr(store,'config',{}).get('managed_plan'):return True
     initialize(store)
     with store.lock:
+        alias=store.execute('SELECT recipient_id FROM plan_contact_aliases WHERE alias=?',(recipient,))
+        if alias:recipient=alias[0]['recipient_id']
         if store.execute('SELECT recipient_id FROM plan_contacts WHERE recipient_id=?',(recipient,)):return True
         if summary(store)['remaining']<=0:return False
         store.execute('INSERT OR IGNORE INTO plan_contacts VALUES(?,?)',(recipient,time.time()));return True
@@ -40,3 +43,19 @@ def apply(store,value):
     if value.get('event_created',0)<plan.get('event_created',0):return summary(store)
     plan.update({key:value[key] for key in ('source','valid_until','subscription_id','customer_id','session_id','event_created') if key in value})
     plan['name']='pro';store.save({**store.config,'managed_plan':plan});return summary(store)
+
+def reconcile(store,comment_author,dm_recipient):
+    # Meta can use different IDs in comment and DM receipts for the same person.
+    if not getattr(store,'config',{}).get('managed_plan') or comment_author==dm_recipient:return
+    initialize(store)
+    with store.lock:
+        old=store.execute('SELECT recipient_id FROM plan_contact_aliases WHERE alias=?',(comment_author,))
+        source=old[0]['recipient_id'] if old else comment_author
+        new=store.execute('SELECT recipient_id FROM plan_contact_aliases WHERE alias=?',(dm_recipient,))
+        target=new[0]['recipient_id'] if new else dm_recipient
+        if source!=target:
+            store.execute('DELETE FROM plan_contacts WHERE recipient_id=?',(source,))
+            store.execute('INSERT OR IGNORE INTO plan_contacts VALUES(?,?)',(target,time.time()))
+            store.execute('UPDATE plan_contact_aliases SET recipient_id=? WHERE recipient_id=?',(target,source))
+        for alias in (source,comment_author,dm_recipient):
+            store.execute('INSERT INTO plan_contact_aliases VALUES(?,?) ON CONFLICT(alias) DO UPDATE SET recipient_id=excluded.recipient_id',(alias,target))

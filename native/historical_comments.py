@@ -124,6 +124,13 @@ class HistoricalComments:
         try:
             media=api.call('GET',job['media_id'],fields='id,owner,media_product_type')
             comment=api.call('GET',job['comment_id'],fields='id,text,timestamp,media,from,hidden')
+            # Instagram's direct comment node can omit from.id while its owned
+            # media comments edge includes it. Re-read the exact comment on that
+            # Reel instead of trusting a username or the saved preview.
+            if not (comment.get('from') or {}).get('id'):
+                edge=self._paged(api,job['media_id']+'/comments','id,text,timestamp,from,hidden')
+                verified=next((row for row in edge if str(row.get('id'))==job['comment_id']),None)
+                if verified:comment={**verified,'media':{'id':job['media_id']}}
             if str((media.get('owner') or {}).get('id')) not in own or media.get('media_product_type')!='REELS' or str(comment.get('id'))!=job['comment_id'] or str((comment.get('media') or {}).get('id'))!=job['media_id'] or str((comment.get('from') or {}).get('id'))!=job['sender_id']:
                 self._pause(run,'Comment or media ownership changed; nothing sent.');return True
             if comment.get('hidden') or not matches(flow,comment.get('text')):
@@ -138,9 +145,9 @@ class HistoricalComments:
             self._pause(run,'Instagram read failed; no reply attempted. Refresh and review before retrying.');return True
         if not self.s.config.get('enabled'):return False
         try:
-            from .plans import admit
+            from .plans import admit,reconcile
         except ImportError:
-            from plans import admit
+            from plans import admit,reconcile
         if not admit(self.s,job['sender_id']):
             self._pause(run,'Contact limit reached. Upgrade from Plans, then resume this launch.');return True
         claimed=self.s.execute("UPDATE historical_jobs SET state='processing' WHERE run_id=? AND comment_id=? AND state='pending' AND EXISTS (SELECT 1 FROM historical_runs WHERE id=? AND state='running') RETURNING comment_id",(run['id'],job['comment_id'],run['id']))
@@ -162,6 +169,7 @@ class HistoricalComments:
                     receipt=self.s.flow_once('historical-opening:'+flow['id']+':'+job['comment_id'],lambda:self.workflows.record_opening(send_opening))
                     self.s.flow_once(canonical,lambda:receipt)
                 recipient=str(receipt.get('recipient_id') or job['sender_id'])
+                reconcile(self.s,job['sender_id'],recipient)
                 self.workflows.put(flow['id'],recipient,opened=True,link_sent=not flow['require_follow'])
                 if not flow['require_follow']:self.workflows.schedule(flow,recipient,'followup','historical:'+job['comment_id'],0)
                 self.s.execute('UPDATE historical_jobs SET dm_accepted=1 WHERE run_id=? AND comment_id=?',(run['id'],job['comment_id']))

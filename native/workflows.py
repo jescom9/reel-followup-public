@@ -4,11 +4,11 @@ from datetime import datetime
 from urllib.parse import urlsplit
 try:
     from .manychat import OPENING,LINK,PUBLIC_REPLY
-    from .plans import admit
+    from .plans import admit,reconcile
     from .comment_reminders import CommentReminders,DEFAULT_TEXT
 except ImportError:
     from manychat import OPENING,LINK,PUBLIC_REPLY
-    from plans import admit
+    from plans import admit,reconcile
     from comment_reminders import CommentReminders,DEFAULT_TEXT
 
 DEFAULT_FOLLOWUP='Hi, ich hoffe, dir hat’s geholfen. Teile dein Ergebnis gerne mit deinen Freunden.'
@@ -173,6 +173,7 @@ class WorkflowEngine:
             else:
                 receipt=self.store.flow_once(opening_key,lambda:opening(lambda:api.send({'comment_id':str(value['id'])},flow['link_text']+' '+flow['link_url'])))
             recipient=str(receipt.get('recipient_id') or sender)
+            reconcile(self.store,sender,recipient)
             self.put(fid,recipient,opened=True,link_sent=not flow['require_follow'])
             if accepted:self.reminders.schedule(flow,opening_key,value,recipient,receipt)
             if not flow['require_follow']:self.schedule(flow,recipient,'followup',key,0)

@@ -12,7 +12,7 @@ class HistoricalLaunchTests(unittest.TestCase):
         self.store=Store(root/'account',root/'.env');self.addCleanup(self.store.db.close)
         self.flow={'id':'launch','name':'Launch','keywords':['App','Fit'],'enabled':True,'require_follow':True,'link_button':True,'link_url':'https://apps.apple.com/app/id6815747379','opening_text':'App free. Follow first.','follow_text':'Follow and tap Following.','link_text':'Your app','button_text':'App Store','public_reply':True,'public_reply_text':'App now free. Check your DMs.','followup_enabled':False,'followup_delay_minutes':60,'followup_text':'How was it?','media_scope':'all','media_ids':[]}
         self.store.config.update(account_id='123',account_aliases=[],username='owner',verified=True,enabled=True,workflow_mode='manychat',access_token='fake',flows=[self.flow])
-        self.now=NOW;self.private=[];self.public=[];self.links=[];self.failure=None;self.following=False;self.owner='123';self.replies=[]
+        self.now=NOW;self.private=[];self.public=[];self.links=[];self.failure=None;self.following=False;self.owner='123';self.replies=[];self.direct_from_missing=False
         def comment(cid,age,sender):return {'id':cid,'text':'App','timestamp':datetime.fromtimestamp(NOW-age,timezone.utc).isoformat(),'from':{'id':sender,'username':sender},'media':{'id':'456'}}
         self.comments=[comment('789',100,'reader'),comment('890',8*DAY,'old-reader')]
         outer=self
@@ -24,7 +24,8 @@ class HistoricalLaunchTests(unittest.TestCase):
                 if path=='456':return {'id':'456','owner':{'id':outer.owner},'media_product_type':'REELS'}
                 if path=='dm-user':return {'is_user_follow_business':outer.following}
                 if path.endswith('/replies'):return {'data':outer.replies}
-                return next(c for c in outer.comments if c['id']==path)
+                comment=next(c for c in outer.comments if c['id']==path)
+                return {**comment,'from':{'username':comment['from']['username']}} if outer.direct_from_missing else comment
             def send_button(self,recipient,text,label,payload):
                 outer.private.append((recipient,text,payload))
                 if outer.failure:raise outer.failure
@@ -91,3 +92,12 @@ class HistoricalLaunchTests(unittest.TestCase):
         self.start();self.queue.run_one(self.store.config)
         self.assertEqual(self.private+self.public,[]);self.assertEqual(self.status()['state'],'paused')
         self.assertIn('Contact limit',self.status()['detail'])
+
+    def test_direct_comment_missing_id_is_revalidated_on_the_owned_reel_edge(self):
+        self.direct_from_missing=True
+        self.start();self.queue.run_one(self.store.config)
+        self.assertEqual(self.status()['dm_accepted'],1);self.assertEqual(len(self.public),1)
+    def test_changed_edge_author_is_rejected_even_if_direct_comment_omits_id(self):
+        self.direct_from_missing=True;self.comments[0]['from']['id']='different-reader'
+        self.start();self.queue.run_one(self.store.config)
+        self.assertEqual(self.private+self.public,[]);self.assertEqual(self.status()['state'],'paused')

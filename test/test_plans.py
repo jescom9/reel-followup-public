@@ -26,3 +26,11 @@ class PlanTests(unittest.TestCase):
     def test_self_hosted_has_no_managed_cap(self):
         for n in range(51):self.assertTrue(admit(self.store,str(n)))
         self.assertNotIn('managed_plan',self.store.config)
+
+    def test_comment_and_dm_ids_are_one_contact_across_flows(self):
+        from native.plans import reconcile
+        managed(self.store);admit(self.store,'comment-id');reconcile(self.store,'comment-id','dm-id')
+        self.store.execute("INSERT INTO workflow_contacts VALUES('flow','dm-id',1,0,0,0)")
+        self.assertEqual(summary(self.store)['used'],1)
+        self.assertTrue(admit(self.store,'comment-id'));self.assertTrue(admit(self.store,'dm-id'))
+        self.assertEqual(summary(self.store)['used'],1)
