@@ -33,11 +33,11 @@ Enrollment, device approval and Tailscale SSH checks can require owner authentic
 
 ## Copy the agent skill from Vercel
 
-Download [SKILL.md](https://reel-followup.vercel.app/agent-skill/reel-followup-pi/SKILL.md) into your agent's skill folder. For Codex on the client or Pi:
+Download [SKILL.md](https://reelfollowups.app/agent-skill/reel-followup-pi/SKILL.md) into your agent's skill folder. For Codex on the client or Pi:
 
 ```sh
 mkdir -p ~/.codex/skills/reel-followup-pi
-curl -fsSL https://reel-followup.vercel.app/agent-skill/reel-followup-pi/SKILL.md \
+curl -fsSL https://reelfollowups.app/agent-skill/reel-followup-pi/SKILL.md \
   -o ~/.codex/skills/reel-followup-pi/SKILL.md
 ```
 

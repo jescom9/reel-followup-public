@@ -7,7 +7,7 @@ description: Install, test, update and maintain Reel Follow-up on a Raspberry Pi
 
 Use the SSH target and account workspace specified by the user. Discover the Pi's username, IP and host fingerprint when missing; verify its host key before connecting. Distinguish a new test Pi from any existing production installation. Keep the client's private SSH key on the client.
 
-The source is https://github.com/jescom9/reel-followup-public. Public source uses anonymous HTTPS; no deploy key is needed. Self-hosting requires the user’s own Meta app. Agent-assisted installation is waitlisted at https://reel-followup.vercel.app/waitlist/. Eligible accounts can use the secure hosted connection. Do not register GitHub deploy keys, print key contents or commit key files. The public installation guide is https://reel-followup.vercel.app/tutorial/. The bot runs in Python 3.10+ with cryptography for token encryption. Vercel serves Instagram OAuth and optional signed forwarding; it does not run the Pi worker or this skill.
+The source is https://github.com/jescom9/reel-followup-public. Public source uses anonymous HTTPS; no deploy key is needed. Self-hosting requires the user’s own Meta app. Agent-assisted installation is waitlisted at https://reelfollowups.app/waitlist/. Eligible accounts can use the secure hosted connection. Do not register GitHub deploy keys, print key contents or commit key files. The public installation guide is https://reelfollowups.app/tutorial/. The bot runs in Python 3.10+ with cryptography for token encryption. Vercel serves Instagram OAuth and optional signed forwarding; it does not run the Pi worker or this skill.
 
 ## Install a fresh Pi
 

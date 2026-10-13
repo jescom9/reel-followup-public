@@ -13,7 +13,7 @@ DEFAULT_FOLLOWUP='Hi, ich hoffe, dir hat’s geholfen. Teile dein Ergebnis gerne
 
 def flows(config):
     if 'flows' in config:
-        items=[{**{'comment_reminder_enabled':False,'comment_reminder_after_hours':24,'comment_reminder_text':DEFAULT_TEXT,'comment_reminder_account':'self'},**f} for f in config['flows']]
+        items=[{**{'comment_reminder_enabled':False,'comment_reminder_after_hours':24,'comment_reminder_text':DEFAULT_TEXT,'comment_reminder_account':'self','media_scope':'all','media_ids':[]},**f} for f in config['flows']]
         for item in items:
             if item['comment_reminder_account']!='self':
                 item.update(comment_reminder_account='self',comment_reminder_enabled=False)
@@ -29,23 +29,29 @@ def flows(config):
 
 def validate_flows(items):
     if not isinstance(items,list) or not 1<=len(items)<=20:raise ValueError('Save between 1 and 20 flows.')
-    result=[];ids=set();words=set()
+    result=[];ids=set();words={}
     for item in items:
         if not isinstance(item,dict):raise ValueError('Invalid flow settings.')
         fid=str(item.get('id') or secrets.token_hex(8))
         if not re.fullmatch(r'[a-zA-Z0-9_-]{1,40}',fid) or fid in ids:raise ValueError('Flow IDs must be unique.')
         ids.add(fid)
+        scope=item.get('media_scope','all');media=item.get('media_ids',[])
+        if scope not in ('all','selected') or not isinstance(media,list) or len(media)>50 or any(not isinstance(mid,str) or not re.fullmatch(r'\d{1,32}',mid) for mid in media) or len(set(media))!=len(media):raise ValueError('Choose all Reels or up to 50 unique Instagram Reel IDs.')
+        if scope=='selected' and not media:raise ValueError('Select at least one Reel for this flow.')
+        media=media if scope=='selected' else []
         keywords=item.get('keywords')
         if isinstance(keywords,str):keywords=keywords.split(',')
         if not isinstance(keywords,list) or not 1<=len(keywords)<=10:raise ValueError('Enter 1–10 comma-separated keywords for each flow.')
         keywords=[str(word).strip() for word in keywords]
         for word in keywords:
-            if not 1<=len(word)<=50 or word.casefold() in words:raise ValueError('Keywords must be unique across flows and 1–50 characters long.')
-            words.add(word.casefold())
+            if not 1<=len(word)<=50:raise ValueError('Keywords must be 1–50 characters long.')
+            owners=words.setdefault(word.casefold(),[])
+            if any(scope=='all' or old['scope']=='all' or set(media).intersection(old['media']) for old in owners):raise ValueError('Keywords must be unique across flows that target the same Reel.')
+            owners.append({'scope':scope,'media':media})
         url=str(item.get('link_url') or '').strip();parsed=urlsplit(url)
         if (url or item.get('enabled')) and (parsed.scheme!='https' or not parsed.netloc or parsed.username or parsed.password or any(ch in url for ch in '\r\n\x00')):
             raise ValueError('Each flow needs an HTTPS link without embedded credentials.')
-        entry={'id':fid,'keywords':keywords,'link_url':url}
+        entry={'id':fid,'keywords':keywords,'link_url':url,'media_scope':scope,'media_ids':media}
         for key,limit in [('name',60),('opening_text',80),('follow_text',80),('link_text',80),('button_text',20),('public_reply_text',300),('followup_text',1000)]:
             text=str(item.get(key) or '').strip()
             if not text or len(text.encode('utf-16-le'))//2>limit:raise ValueError(f'{key.replace("_"," ").capitalize()} must contain 1–{limit} characters (emoji can count as two).')
@@ -141,7 +147,8 @@ class WorkflowEngine:
         choices=flows(config);value=event['value'];now=self.clock();api=self.factory(config)
         own={str(config['account_id']),*map(str,config.get('account_aliases',[]))}
         if event['kind']=='comment':
-            flow=next((f for f in choices if f['enabled'] and any(re.search(r'(?<!\w)'+re.escape(word)+r'(?!\w)',value.get('text',''),re.I) for word in f['keywords'])),None)
+            media=str(value.get('media',{}).get('id') or '')
+            flow=next((f for f in choices if f['enabled'] and (f.get('media_scope','all')=='all' or media in f.get('media_ids',[])) and any(re.search(r'(?<!\w)'+re.escape(word)+r'(?!\w)',value.get('text',''),re.I) for word in f['keywords'])),None)
             if not flow:return 'No active keyword flow matched.'
             sender=str(value.get('from',{}).get('id') or '');media=str(value.get('media',{}).get('id') or '')
             if not sender or sender in own or not media or value.get('parent_id'):return 'Comment outside this Reel flow.'

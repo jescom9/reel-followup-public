@@ -16,6 +16,6 @@ SQLite is the default. Neon is an optional archive/queue backend. The public sou
 
 ## Prefer assisted setup?
 
-Join [the Reel Follow-up assisted setup waitlist](https://reel-followup.vercel.app/waitlist/). Agent-assisted installation remains waitlisted. Eligible accounts can use the operator’s secure hosted connection to save credentials on its Pi; Meta app access requirements still apply. Waitlist signup itself does not authorize Instagram or start any automation. Service onboarding and platform approval must be completed before live use.
+Join [the Reel Follow-up assisted setup waitlist](https://reelfollowups.app/waitlist/). Agent-assisted installation remains waitlisted. Eligible accounts can use the operator’s secure hosted connection to save credentials on its Pi; Meta app access requirements still apply. Waitlist signup itself does not authorize Instagram or start any automation. Service onboarding and platform approval must be completed before live use.
 
 The waitlist asks only for contact details. Do not share a Facebook password, Instagram token, app secret or SSH private key. Agents can assist with configuration; the account owner completes required sign-in, consent and approvals.

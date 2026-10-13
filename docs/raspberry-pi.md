@@ -1,6 +1,6 @@
 # Run Reel Follow-up on your Raspberry Pi
 
-The public self-hosting version requires **your own Meta developer app**. Prefer a service-managed connection? [Join the assisted setup waitlist](https://reel-followup.vercel.app/waitlist/).
+The public self-hosting version requires **your own Meta developer app**. Prefer a service-managed connection? [Join the assisted setup waitlist](https://reelfollowups.app/waitlist/).
 
 Version 0.4 uses **SQLite on the Pi by default**. Events, chats, campaign jobs and delivery receipts stay local. Neon is optional. The bot needs Python 3.10+ and uses SQLite plus cryptography for token encryption; no Node runtime or Docker bot is required.
 
@@ -145,11 +145,11 @@ Older installations with a database URL and no storage selector keep their Neon 
 
 ## Copy the maintenance skill into your agent
 
-Download [the agent skill](https://reel-followup.vercel.app/agent-skill/reel-followup-pi/SKILL.md) into your agent's skill folder. For Codex on the client or Pi:
+Download [the agent skill](https://reelfollowups.app/agent-skill/reel-followup-pi/SKILL.md) into your agent's skill folder. For Codex on the client or Pi:
 
 ```sh
 mkdir -p ~/.codex/skills/reel-followup-pi
-curl -fsSL https://reel-followup.vercel.app/agent-skill/reel-followup-pi/SKILL.md \
+curl -fsSL https://reelfollowups.app/agent-skill/reel-followup-pi/SKILL.md \
   -o ~/.codex/skills/reel-followup-pi/SKILL.md
 ```
 
@@ -172,4 +172,4 @@ python3 scripts/reelctl.py update
 
 Run unrelated home-security automation as a separate service. Reel Follow-up does not control cameras, locks or alarms.
 
-[Assisted setup waitlist](https://reel-followup.vercel.app/waitlist/) · [Follow @reelfollowup](https://www.instagram.com/reelfollowup) · [GitHub source](https://github.com/jescom9/reel-followup-public)
+[Assisted setup waitlist](https://reelfollowups.app/waitlist/) · [Follow @reelfollowup](https://www.instagram.com/reelfollowup) · [GitHub source](https://github.com/jescom9/reel-followup-public)

@@ -12,7 +12,7 @@ This public repository contains the self-hosted Python app, its private local da
 
 **Self-host now:** create your own Meta developer app and authorize your own Instagram Business or Creator account. Use your app ID, app secret, account token and signed HTTPS webhook callback. A copied token from someone else's app alone is not a complete independent installation. Follow [the Meta app guide](docs/self-host-meta.md) and [the Raspberry Pi tutorial](docs/raspberry-pi.md).
 
-**Prefer assisted setup?** Join [the Reel Follow-up waitlist](https://reel-followup.vercel.app/waitlist/) for agent-assisted installation and a service-managed Meta connection. Assisted installation remains waitlisted; eligible accounts can use the secure hosted connection. Joining the waitlist does not authorize Instagram or start messaging.
+**Prefer assisted setup?** Join [the Reel Follow-up waitlist](https://reelfollowups.app/waitlist/) for agent-assisted installation and a service-managed Meta connection. Assisted installation remains waitlisted; eligible accounts can use the secure hosted connection. Joining the waitlist does not authorize Instagram or start messaging.
 
 ## Test a fresh Pi
 
@@ -54,4 +54,4 @@ node --test
 
 Node and `pnpm install` are needed for Vercel development/tests, not the Pi bot. The paid-service waitlist and its database are excluded from this edition. Independent operators supply their own provider details and privacy notices.
 
-[Follow @reelfollowup](https://www.instagram.com/reelfollowup) · [Public tutorial](https://reel-followup.vercel.app/tutorial/) · [Assisted setup waitlist](https://reel-followup.vercel.app/waitlist/)
+[Follow @reelfollowup](https://www.instagram.com/reelfollowup) · [Public tutorial](https://reelfollowups.app/tutorial/) · [Assisted setup waitlist](https://reelfollowups.app/waitlist/)

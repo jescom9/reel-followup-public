@@ -53,7 +53,7 @@ async function refresh() {
   nonce = data.nonce;
   const connector=$('#connector-link');
   try{const url=new URL(data.connector_url);if(url.protocol!=='https:'||url.username||url.password)throw Error();connector.href=url.href;connector.textContent='Open your Instagram connector';}
-  catch{connector.href='https://reel-followup.vercel.app/tutorial/';connector.textContent='Set up your own Meta app and Instagram connector';}
+  catch{connector.href='https://reelfollowups.app/tutorial/';connector.textContent='Set up your own Meta app and Instagram connector';}
   const config = data.config;
   $('#toggle-workspace').disabled=!config.verified;$('#toggle-workspace').textContent=config.enabled?'Pause account':'Resume account';
   note('#account-state',config.enabled?'All active flows in this workspace can run.':'This account is paused; its flows and reminders do not send.');
@@ -183,7 +183,7 @@ function markFlowDirty(){flowDirty=true;note('#flows-status','Unsaved changes. S
 $('#workflow-editor').addEventListener('input',markFlowDirty);
 function collectFlows(){return [...$('#workflow-list').children].map(card=>{
   const prior=savedFlows.find(f=>f.id===card.dataset.id)||{enabled:false,followup_enabled:true};
-  const flow={id:card.dataset.id,enabled:prior.enabled,followup_enabled:prior.followup_enabled};
+  const flow={id:card.dataset.id,enabled:prior.enabled,followup_enabled:prior.followup_enabled,media_scope:prior.media_scope||'all',media_ids:[...(prior.media_ids||[])]};
   for(const name of flowFields)flow[name]=card.querySelector(`[name="${name}"]`).value;
   flow.keywords=flow.keywords.split(',').map(word=>word.trim());flow.followup_delay_minutes=Number(flow.followup_delay_minutes);flow.comment_reminder_after_hours=Number(flow.comment_reminder_after_hours);flow.comment_reminder_account='self';
   for(const name of ['require_follow','link_button','public_reply','comment_reminder_enabled'])flow[name]=card.querySelector(`[name="${name}"]`).checked;

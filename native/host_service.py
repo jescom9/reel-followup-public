@@ -6,13 +6,13 @@ try:
     from .profiles import read_values
     from .workflows import flows,validate_flows
     from .webhook_queue import queued_event
-    from . import hosted_history,hosted_metrics,hosted_activity
+    from . import hosted_history,hosted_metrics,hosted_activity,hosted_media
     from .storage import StorageBridge,backend_name
 except ImportError:
     from profiles import read_values
     from workflows import flows,validate_flows
     from webhook_queue import queued_event
-    import hosted_history,hosted_metrics,hosted_activity
+    import hosted_history,hosted_metrics,hosted_activity,hosted_media
     from storage import StorageBridge,backend_name
 
 class HostService:
@@ -62,6 +62,7 @@ class HostService:
                 history=hosted_history.summary(app.store)
             return {'username':config['username'],'account_id':config['account_id'],'enabled':config['enabled'],'flows':flows(config),
                 'metrics':hosted_metrics.summary(app.store,flows(config),include_legacy=history is not None),'history':history,'reserved':self.reserved(config),'credentials':{'stored':bool(app.store.vault.get()),'expires_at':config.get('token_expires_at',0)}}
+        if op=='media.list':return hosted_media.list_media(app,self.registry.graph,value)
         if op=='activity.list':
             local=backend_name(app.store.env_file)=='sqlite'
             if local:
@@ -77,7 +78,9 @@ class HostService:
             config.update(enabled=value['enabled'],workflow_mode='manychat')
             if value['enabled'] and not config.get('campaign_started_at'):config['campaign_started_at']=self.clock()
         elif op=='flows.save':
-            config['flows']=validate_flows(value.get('flows'));config['workflow_mode']='manychat'
+            selected=validate_flows(value.get('flows'))
+            hosted_media.verify_new_selections(app,self.registry.graph,selected,flows(config))
+            config['flows']=selected;config['workflow_mode']='manychat'
             placeholders=','.join('?' for f in config['flows'])
             app.store.execute("UPDATE workflow_jobs SET state='cancelled',detail='Flow removed.' WHERE state IN ('waiting','waiting_inbound') AND flow_id NOT IN ("+placeholders+")",[f['id'] for f in config['flows']])
         elif op=='flows.toggle':

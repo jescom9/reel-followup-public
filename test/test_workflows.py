@@ -43,6 +43,34 @@ class WorkflowTests(unittest.TestCase):
             self.assertTrue(restored['enabled'])
         self.assertEqual(validate_flows([{**self.c['flows'][0],'comment_reminder_account':'self'}])[0]['comment_reminder_account'],'self')
 
+    def test_reel_selection_is_validated_and_keyword_overlap_is_scoped(self):
+        selected={**flow('one','INFO'),'media_scope':'selected','media_ids':['111']}
+        other={**flow('two','INFO'),'media_scope':'selected','media_ids':['222']}
+        self.assertEqual(len(validate_flows([selected,other])),2)
+        for bad in [{**selected,'media_ids':[]},{**selected,'media_ids':['111','111']},{**selected,'media_ids':[111]},{**selected,'media_scope':'unknown'}]:
+            with self.assertRaises(ValueError):validate_flows([bad])
+        for conflicting in [{**other,'media_ids':['111']},{**other,'media_scope':'all'}]:
+            with self.assertRaisesRegex(ValueError,'unique'):validate_flows([selected,conflicting])
+        self.assertEqual(validate_flows([flow('default','info')])[0]['media_scope'],'all')
+
+    def test_unselected_reels_never_open_or_schedule_a_flow(self):
+        self.c['flows'][0].update(media_scope='selected',media_ids=['111'])
+        result=self.comment('alarm')
+        self.assertIn('No active',result);self.assertEqual(self.api.calls,[])
+        self.assertEqual(self.store.execute('SELECT * FROM workflow_jobs'),[])
+
+    def test_selected_reel_triggers_only_the_matching_scoped_flow(self):
+        self.c['flows']=[{**flow('one','info',False),'media_scope':'selected','media_ids':['111']},{**flow('two','info',False),'media_scope':'selected','media_ids':['222']}]
+        original=self.api.call
+        def media(method,path,data=None,**query):
+            if path in ('111','222'):return {'id':path,'owner':{'id':'business'},'media_product_type':'REELS'}
+            return original(method,path,data,**query)
+        self.api.call=media
+        event=copy.deepcopy(COMMENT);event['value']['text']='info';event['value']['media']['id']='222'
+        self.engine.process('selected-comment',event,self.c)
+        self.assertEqual([c[-1] for c in self.api.calls if c[0]=='url'],['https://example.test/info'])
+        self.assertEqual(self.store.execute('SELECT flow_id FROM workflow_contacts')[0]['flow_id'],'two')
+
     def test_distinct_keywords_have_distinct_destinations_and_follow_requirements(self):
         self.comment('alarm');self.assertFalse(any(c[0]=='url' for c in self.api.calls))
         self.click();self.assertEqual(self.api.calls[-1][-1],'https://example.test/alarm')

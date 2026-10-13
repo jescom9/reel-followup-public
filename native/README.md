@@ -33,3 +33,7 @@ Use **Instagram account workspaces → Add an Instagram account** to verify a to
 Each flow can enable **Reply in comments if no interaction with the opening DM**, with an editable delay (24 hours by default) and text. Reminders apply to new opening sends after enabling the setting. The worker checks recorded interactions and the live inbox, then posts at most one public reply on the original comment. A reply/button interaction cancels it; paused flows or accounts do not post. A comment reminder does not extend the direct-message reply window.
 
 Reminders are posted only by the account that owns the flow and media. Cross-account collaboration has been removed. Older flow settings that selected a different reminder account are shown with reminders disabled, and runtime checks block cross-account jobs before any API call. Account workspaces remain isolated and can still be managed separately.
+
+## Reel targeting
+
+Keyword flows default to `media_scope: "all"`, including future Reels. A flow can use `media_scope: "selected"` with a nonempty `media_ids` array of up to 50 owned Instagram Reel IDs. The worker matches both keyword and Reel before attempting an opening. The managed website includes an Instagram API thumbnail picker; local editor saves preserve existing targeting. Creating or changing selections verifies ownership. Identical keywords may be used by different flows when their selected Reel sets do not overlap.

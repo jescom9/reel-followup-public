@@ -12,6 +12,7 @@ try:
     from .manychat import ManychatFlow
     from .follower_checks import FollowerChecks
     from .workflows import WorkflowEngine,flows,validate_flows
+    from .hosted_media import verify_new_selections
     from .webhook_queue import queued_event
     from .neon_http import NeonHTTP
     from .storage import backend_name,delivery_mode
@@ -22,6 +23,7 @@ except ImportError:
     from manychat import ManychatFlow
     from follower_checks import FollowerChecks
     from workflows import WorkflowEngine,flows,validate_flows
+    from hosted_media import verify_new_selections
     from webhook_queue import queued_event
     from neon_http import NeonHTTP
     from storage import backend_name,delivery_mode
@@ -343,7 +345,7 @@ class App:
     @property
     def webhook_url(self):
         values=read_env(self.store.env_file)
-        return values.get('REEL_WEBHOOK_URL') or (self.store.config.get('public_webhook_origin','').rstrip('/')+'/webhook' if self.store.config.get('public_webhook_origin') else 'https://reel-followup.vercel.app/api/instagram/webhook' if delivery_mode(self.store.env_file)=='neon' else '')
+        return values.get('REEL_WEBHOOK_URL') or (self.store.config.get('public_webhook_origin','').rstrip('/')+'/webhook' if self.store.config.get('public_webhook_origin') else 'https://reelfollowups.app/api/instagram/webhook' if delivery_mode(self.store.env_file)=='neon' else '')
     def webhook_worker(self):
         while not self.stop.is_set():
             c=dict(self.store.config)
@@ -727,6 +729,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(200,{'message':('Resumed' if value else 'Paused')+' '+('flow.' if setting=='enabled' else 'follow-ups.')})
             if self.path == '/api/flows':
                 checked=validate_flows(data.get('flows'))
+                verify_new_selections(self.app,Graph,checked,flows(c))
                 if not c['verified'] and any(f['enabled'] for f in checked):raise ValueError('Unverified accounts can save only paused drafts.')
                 c['flows']=checked
                 placeholders=','.join('?' for f in c['flows'])

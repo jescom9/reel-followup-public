@@ -11,6 +11,12 @@ module.exports = function login(req, res) {
   try { cfg = config(); serviceConfig(); }
   catch (error) { return html(res, 503, `<h1>Setup required</h1><p>${error.message}</p><p>Add the required environment settings in Vercel, then redeploy.</p>`); }
 
+  // Set OAuth state on the same origin as the callback, including during a domain migration.
+  const canonical=new URL(cfg.redirectUri);
+  if(req.headers?.host && req.headers.host!==canonical.host){
+    res.statusCode=302;res.setHeader('Cache-Control','no-store');res.setHeader('Location',canonical.origin+'/api/instagram/login');return res.end();
+  }
+
   const state = crypto.randomBytes(32).toString('base64url');
   const signed = `${state}.${mac(state, cfg.stateSecret)}`;
   const auth = new URL('https://www.instagram.com/oauth/authorize');
