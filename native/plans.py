@@ -19,8 +19,9 @@ def managed(store):
 def summary(store):
     initialize(store);plan=store.config.get('managed_plan') or {}
     used=store.execute('SELECT count(*) n FROM plan_contacts')[0]['n']
-    pro=plan.get('name')=='pro' and (plan.get('source')=='promotion' or plan.get('valid_until',0)>time.time())
+    pro=plan.get('name')=='pro' and plan.get('valid_until',0)>time.time()
     return {'name':'pro' if pro else 'free','source':plan.get('source','free'),'limit':5000 if pro else 50,'used':used,
+            'valid_until':plan.get('valid_until',0),'trial_used':bool(plan.get('trial_used')),'trial_end':plan.get('trial_end',0),
             'generation':plan.get('generation',''),'subscription_id':plan.get('subscription_id',''),'customer_id':plan.get('customer_id',''),'remaining':max(0,(5000 if pro else 50)-used)}
 
 def admit(store,recipient):
@@ -37,11 +38,12 @@ def apply(store,value):
     managed(store);plan=dict(store.config['managed_plan'])
     if value.get('generation')!=plan['generation']:raise ValueError('This checkout belongs to an earlier workspace. Start again from Plans.')
     if value.get('source') not in ('promotion','stripe'):raise ValueError('Invalid plan activation.')
-    if value['source']=='stripe' and not isinstance(value.get('valid_until'),(int,float)):raise ValueError('Missing subscription expiry.')
+    if not isinstance(value.get('valid_until'),(int,float)):raise ValueError('Missing subscription expiry.')
     # A late webhook cannot replace a newer subscription.
     if value.get('subscription_id') and plan.get('subscription_id') and value['subscription_id']!=plan['subscription_id']:raise ValueError('Subscription does not match this workspace.')
     if value.get('event_created',0)<plan.get('event_created',0):return summary(store)
-    plan.update({key:value[key] for key in ('source','valid_until','subscription_id','customer_id','session_id','event_created') if key in value})
+    plan.update({key:value[key] for key in ('source','valid_until','subscription_id','customer_id','session_id','event_created','trial_end') if key in value})
+    if value.get('trial_used'):plan['trial_used']=True
     plan['name']='pro';store.save({**store.config,'managed_plan':plan});return summary(store)
 
 def reconcile(store,comment_author,dm_recipient):

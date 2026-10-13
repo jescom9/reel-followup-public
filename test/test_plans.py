@@ -18,7 +18,7 @@ class PlanTests(unittest.TestCase):
     def test_promotion_paid_expiry_generation_and_pro_limit(self):
         p=managed(self.store)
         with self.assertRaises(ValueError):apply(self.store,{'source':'promotion','generation':'foreign'})
-        p=apply(self.store,{'source':'promotion','generation':p['generation']});self.assertEqual(p['limit'],5000)
+        p=apply(self.store,{'source':'promotion','generation':p['generation'],'valid_until':2000000000});self.assertEqual(p['limit'],5000)
         for n in range(5000):self.store.execute('INSERT INTO plan_contacts VALUES(?,0)',(str(n),))
         self.assertFalse(admit(self.store,'over'))
         p=apply(self.store,{'source':'stripe','generation':p['generation'],'valid_until':0,'event_created':2});self.assertEqual(p['limit'],50)
@@ -34,3 +34,11 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(summary(self.store)['used'],1)
         self.assertTrue(admit(self.store,'comment-id'));self.assertTrue(admit(self.store,'dm-id'))
         self.assertEqual(summary(self.store)['used'],1)
+
+    def test_cardless_access_expires_and_trial_eligibility_survives_cancellation(self):
+        p=managed(self.store)
+        p=apply(self.store,{'source':'promotion','generation':p['generation'],'valid_until':2000000000,'trial_used':True})
+        self.assertTrue(p['trial_used']);self.assertEqual(p['name'],'pro')
+        p=apply(self.store,{'source':'stripe','generation':p['generation'],'valid_until':0,'trial_used':False})
+        self.assertTrue(p['trial_used']);self.assertEqual(p['name'],'free')
+        with self.assertRaises(ValueError):apply(self.store,{'source':'promotion','generation':p['generation']})
