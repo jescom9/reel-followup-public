@@ -6,7 +6,7 @@
 
 ## Neon on the hosted worker
 
-Set `REEL_STORAGE=neon`, `REEL_FOLLOWUP_DATABASE_URL` privately and **`REEL_WEBHOOK_DELIVERY=relay`** in root and account environments. Neon stores the archive, contacts and global delivery claims; encrypted credentials, webhook intake, campaign configuration, jobs and plan records remain local. The signed Vercel bridge sends new webhooks directly to the Pi. Idle archive/dashboard refresh and SQL health probes run hourly so they do not keep the free compute awake every few seconds. Customer requests and real messages may wake it.
+Set `REEL_STORAGE=neon`, `REEL_FOLLOWUP_DATABASE_URL` privately and **`REEL_WEBHOOK_DELIVERY=relay`** in root and account environments. Neon stores the archive, contacts and global delivery claims; encrypted credentials, webhook intake, campaign configuration, jobs and plan records remain local. The signed Vercel bridge sends new webhooks directly to the Pi. Idle archive/dashboard refresh and SQL health probes run hourly so they do not keep the free compute awake every few seconds. The account header caches cloud archive totals for an hour; plan and workflow totals remain local and current. Read-only archive calls use a bounded five-second timeout without schema preparation. An archive outage leaves plan/settings access available. Opening conversations and real messages may wake the database.
 
 Before changing storage, take an encrypted backup, stop the worker and run:
 

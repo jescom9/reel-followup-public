@@ -1,5 +1,5 @@
 """Read-only, account-scoped history for the hosted dashboard."""
-import json
+import json,time
 try:
     from .followup import message_text
 except ImportError:
@@ -53,7 +53,7 @@ def local_conversation(store,data):
 def cloud(store):
     try:from .neon_http import NeonHTTP
     except ImportError:from neon_http import NeonHTTP
-    return NeonHTTP(store.env_file)
+    return NeonHTTP(store.env_file,timeout=5,prepare=False)
 
 def is_cloud(store):
     try:from .storage import backend_name
@@ -62,7 +62,11 @@ def is_cloud(store):
 
 def summary(store):
     if not is_cloud(store):return local_summary(store)
-    with cloud(store) as db:return db.query('hosted_summary',[store.config['account_id']])[0]
+    account=str(store.config['account_id']);cached=getattr(store,'_hosted_history_cache',None)
+    if cached and cached['account_id']==account and time.monotonic()-cached['time']<3600:return dict(cached['summary'])
+    with cloud(store) as db:result=db.query('hosted_summary',[account])[0]
+    store._hosted_history_cache={'account_id':account,'time':time.monotonic(),'summary':dict(result)}
+    return result
 
 def chats(store,data):
     if not is_cloud(store):return local_chats(store,data)

@@ -3,12 +3,12 @@ import json,re,time
 try:
     from .profiles import read_values
     from .workflows import flows
-    from .storage import StorageBridge,backend_name
+    from .storage import StorageBridge,backend_name,ArchiveError
     from . import hosted_metrics,hosted_activity,hosted_history
 except ImportError:
     from profiles import read_values
     from workflows import flows
-    from storage import StorageBridge,backend_name
+    from storage import StorageBridge,backend_name,ArchiveError
     import hosted_metrics,hosted_activity,hosted_history
 
 OPERATIONS={'admin.overview','admin.inspect','admin.events','admin.activity','admin.archive.list','admin.archive.conversation','admin.audit','admin.resources'}
@@ -106,7 +106,9 @@ class AdminPortal:
             if backend_name(app.store.env_file)=='sqlite':
                 with StorageBridge(app.store.env_file,app.store.folder):pass
             if operation=='admin.inspect':
-                result={**self.snapshot(app),'flows':flows(c),'history':hosted_history.summary(app.store)}
+                try:history=hosted_history.summary(app.store)
+                except ArchiveError:history=None
+                result={**self.snapshot(app),'flows':flows(c),'history':history}
             elif operation=='admin.events':result=self.events(app.store,data)
             elif operation=='admin.activity':
                 result=hosted_activity.list_activity(app.store,flows(c),data,local_history=self.table(app.store,'archive_records'))

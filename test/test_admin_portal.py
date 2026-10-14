@@ -68,6 +68,23 @@ class AdminTests(unittest.TestCase):
         actor.store.execute('UPDATE service_alert_subscription SET last_sent=0')
         alerts.check({'capacity':{'alerts':['New availability issue']}});self.assertEqual(len(sent),1)
 
+    def test_archive_outage_does_not_hide_the_local_plan_or_block_support_inspection(self):
+        from native.neon_http import ArchiveError
+        self.admin()
+        with patch.object(hosted_history,'summary',side_effect=ArchiveError('Neon unavailable')):
+            status=self.call('123','status');self.assertIsNone(status['history']);self.assertEqual(status['plan']['name'],'free')
+            inspected=self.call('900','admin.inspect',target_account_id='123');self.assertIsNone(inspected['history']);self.assertEqual(inspected['account_id'],'123')
+
+    def test_cloud_header_totals_are_cached_per_account_without_delaying_live_plan_data(self):
+        actor,target=self.admin();calls=[]
+        class Cloud:
+            def __enter__(self):return self
+            def __exit__(self,*args):pass
+            def query(self,name,args):calls.append(args[0]);return [{'messages':len(calls)}]
+        with patch.object(hosted_history,'is_cloud',return_value=True),patch.object(hosted_history,'cloud',return_value=Cloud()):
+            hosted_history.summary(target.store);hosted_history.summary(target.store);hosted_history.summary(actor.store)
+        self.assertEqual(calls,['123','900'])
+
     def test_resource_operation_does_not_require_a_target_account(self):
         self.admin();self.registry.resources.report=MagicMock(return_value={'checked_at':1})
         self.assertEqual(self.call('900','admin.resources'),{'checked_at':1})

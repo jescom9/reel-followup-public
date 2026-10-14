@@ -28,7 +28,7 @@ def decode(value,oid):
     return value
 
 class NeonHTTP:
-    def __init__(self,env_file=None):self.env_file=env_file
+    def __init__(self,env_file=None,timeout=30,prepare=True):self.env_file,self.timeout,self.prepare=env_file,timeout,prepare
     def __enter__(self):
         env_path=Path(self.env_file or os.environ.get('REEL_ENV_FILE') or Path(__file__).resolve().parent.parent/'.env')
         values={}
@@ -41,6 +41,7 @@ class NeonHTTP:
         if parsed.scheme not in ('postgres','postgresql') or not parsed.hostname or not parsed.hostname.endswith('.neon.tech'):
             raise ArchiveError('Configure a private Neon database connection in the worker environment.')
         self.endpoint='https://api.'+parsed.hostname.split('.',1)[1]+'/sql'
+        if not self.prepare:return self
         identity=hashlib.sha256(self.connection.encode()).hexdigest()
         with _prepare_lock:
             if identity not in _prepared:
@@ -53,7 +54,7 @@ class NeonHTTP:
             'Content-Type':'application/json','Neon-Connection-String':self.connection,
             'Neon-Raw-Text-Output':'true','Neon-Array-Mode':'true'})
         try:
-            with urlopen(request,timeout=30) as response:return json.load(response)
+            with urlopen(request,timeout=self.timeout) as response:return json.load(response)
         except Exception:raise ArchiveError('The Neon operation could not be confirmed; saved data and delivery claims are retained.') from None
     def query(self,name,args=(),**replacements):
         query=QUERIES[name].replace('${chatView}',QUERIES['chatView']).replace('${hostedChatView}',QUERIES['hosted_chat_view'])

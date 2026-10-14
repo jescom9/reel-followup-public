@@ -8,14 +8,14 @@ try:
     from .workflows import flows,validate_flows
     from .webhook_queue import queued_event
     from . import hosted_history,hosted_metrics,hosted_activity,hosted_media,plans
-    from .storage import StorageBridge,backend_name
+    from .storage import StorageBridge,backend_name,ArchiveError
 except ImportError:
     from profiles import read_values
     from admin_portal import AdminPortal
     from workflows import flows,validate_flows
     from webhook_queue import queued_event
     import hosted_history,hosted_metrics,hosted_activity,hosted_media,plans
-    from storage import StorageBridge,backend_name
+    from storage import StorageBridge,backend_name,ArchiveError
 
 class HostService:
     def __init__(self,registry,clock=time.time):
@@ -78,9 +78,10 @@ class HostService:
             history=None
             if backend_name(app.store.env_file)=='sqlite':
                 with StorageBridge(app.store.env_file,app.store.folder):pass
-            history=hosted_history.summary(app.store)
+            try:history=hosted_history.summary(app.store)
+            except ArchiveError:history=None
             return {'plan':plan,'is_admin':self.admin.allowed(config),'campaign_setup_ready':self.registry.campaign_setup.ready(),'username':config['username'],'account_id':config['account_id'],'enabled':config['enabled'],'flows':flows(config),
-                'metrics':hosted_metrics.summary(app.store,flows(config),include_legacy=history is not None),'history':history,'reserved':self.reserved(config),'credentials':{'stored':bool(app.store.vault.get()),'expires_at':config.get('token_expires_at',0)}}
+                'metrics':hosted_metrics.summary(app.store,flows(config),include_legacy=bool(app.store.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='local_flow_contacts'"))),'history':history,'reserved':self.reserved(config),'credentials':{'stored':bool(app.store.vault.get()),'expires_at':config.get('token_expires_at',0)}}
         if op in ('history.preview','history.start','history.pause','history.status'):
             queue=app.engine.historical
             if op=='history.status':return {'runs':queue.status(config)}
