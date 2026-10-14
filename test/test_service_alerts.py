@@ -31,5 +31,8 @@ class AlertTests(unittest.TestCase):
     def test_templates_are_two_copyable_messages_without_example_url_preview(self):
         self.message(payload='RF_SETUP_TEMPLATE');messages=[r['message']['text'] for r in self.registry.sent]
         self.assertEqual(len(messages),2);self.assertIn('My bike tips',messages[0]);self.assertEqual(messages[1].splitlines()[3],'Link:');self.assertNotIn('https://example.com',messages[0])
+        from native.campaign_setup import draft_from_text
+        parsed=draft_from_text(messages[0].replace('[your HTTPS link]','https://example.test/tips'))
+        self.assertEqual(parsed['keywords'],['TIPS'])
 
 if __name__=='__main__':unittest.main()

@@ -7,8 +7,7 @@ except ImportError:
     from profiles import read_values
     from workflows import flows,validate_flows
 
-TEMPLATE_EXAMPLE="""Example — replace the link with your full HTTPS link:
-Campaign:
+TEMPLATE_EXAMPLE="""Campaign:
 Name: My bike tips
 Keyword: TIPS
 Link: [your HTTPS link]
