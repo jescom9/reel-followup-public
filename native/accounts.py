@@ -7,9 +7,13 @@ from pathlib import Path
 try:
     from .profiles import Profiles,read_values
     from .campaign_setup import CampaignSetup
+    from .resources import Resources
+    from .service_alerts import ServiceAlerts
 except ImportError:
     from profiles import Profiles,read_values
     from campaign_setup import CampaignSetup
+    from resources import Resources
+    from service_alerts import ServiceAlerts
 
 class AccountRegistry:
     def __init__(self,project,app_factory,graph_factory,defaults):
@@ -17,6 +21,7 @@ class AccountRegistry:
         self.factory,self.graph=app_factory,graph_factory
         self.apps={};self.lock=threading.RLock();self.running=False
         self.campaign_setup=CampaignSetup(self)
+        self.resources=Resources(self);self.service_alerts=ServiceAlerts(self)
         for row in self.profiles.listing():self.load(row['profile_id'])
     def load(self,identifier):
         env,data=self.profiles.location(identifier);app=self.factory(data,env)
@@ -83,7 +88,6 @@ class AccountRegistry:
                 from .storage import backend_name
             except ImportError:
                 from storage import backend_name
-            if backend_name(app.store.env_file)!='sqlite':raise ValueError('Ask the operator to delete this external-storage workspace.')
             if identifier=='default':raise ValueError('The host account must be removed by its operator.')
             if not isinstance(username,str) or username!=app.store.config['username']:raise ValueError('Type the account username exactly to confirm deletion.')
             if app.store.config.get('managed_plan',{}).get('subscription_id'):raise ValueError('Cancel the subscription from Plans before deleting this workspace.')
@@ -97,6 +101,14 @@ class AccountRegistry:
         with self.lock:
             folder=app.store.folder.resolve()
             if folder.parent!=self.profiles.folder.resolve():raise ValueError('Invalid workspace location.')
+            if backend_name(app.store.env_file)=='neon':
+                try:from .neon_http import NeonHTTP
+                except ImportError:from neon_http import NeonHTTP
+                # The verified workspace selects scope; the request cannot choose another owner.
+                account_ids=[str(app.store.config['account_id']),*map(str,app.store.config.get('account_aliases',[]))]
+                with NeonHTTP(app.store.env_file) as cloud:
+                    queries=[{'query':'DELETE FROM '+table+' WHERE ig_account_id=ANY($1::text[])','params':['{'+','.join(account_ids)+'}']} for table in ('reel_followup_instagram_chat_archive','reel_followup_instagram_contacts','reel_followup_instagram_flow_actions','reel_followup_instagram_followups','reel_followup_instagram_webhook_events')]
+                    cloud.http({'queries':queries})
             with app.store.lock:
                 app.store.db.close()
                 shutil.rmtree(folder)
@@ -109,7 +121,10 @@ class AccountRegistry:
             if self.running:return
             self.running=True
             for app in self.apps.values():self.start_app(app)
+            if read_values(self.project/'.env').get('REEL_ADMIN_ACCOUNT_IDS') or read_values(self.project/'.env').get('REEL_ALERT_USERNAME'):
+                threading.Thread(target=self.resources.run,daemon=True).start()
     def stop(self):
+        self.running=False
         for app in self.apps.values():app.stop.set()
     def ingest(self,body):
         for app in list(self.apps.values()):app.store.ingest(body)

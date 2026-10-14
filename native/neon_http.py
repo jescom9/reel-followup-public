@@ -56,7 +56,7 @@ class NeonHTTP:
             with urlopen(request,timeout=30) as response:return json.load(response)
         except Exception:raise ArchiveError('The Neon operation could not be confirmed; saved data and delivery claims are retained.') from None
     def query(self,name,args=(),**replacements):
-        query=QUERIES[name].replace('${chatView}',QUERIES['chatView'])
+        query=QUERIES[name].replace('${chatView}',QUERIES['chatView']).replace('${hostedChatView}',QUERIES['hosted_chat_view'])
         for key,value in replacements.items():query=query.replace('${'+key+'}',value)
         if '${' in query:raise ArchiveError('Incomplete archive query.')
         result=self.http({'query':query,'params':[pg_value(arg) for arg in args]})

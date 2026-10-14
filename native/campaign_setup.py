@@ -7,13 +7,21 @@ except ImportError:
     from profiles import read_values
     from workflows import flows,validate_flows
 
-TEMPLATE='''Campaign:
-Name: My campaign
-Keyword: MYKEYWORD
-Link: https://example.com/
+TEMPLATE_EXAMPLE="""Example — replace the link with your full HTTPS link:
+Campaign:
+Name: My bike tips
+Keyword: TIPS
+Link: [your HTTPS link]
 Follow required: yes
-Message: Here’s your link 👇
-Button: Open link'''
+Message: Thanks for following! Here are my bike tips 👇
+Button: Get the tips"""
+TEMPLATE="""Campaign:
+Name:
+Keyword:
+Link:
+Follow required: yes
+Message:
+Button:"""
 
 
 def draft_from_text(text):
@@ -152,12 +160,19 @@ class CampaignSetup:
             self.send(store,api,key,sender,'I couldn’t verify your Instagram account. Please set up your campaign in https://reelfollowups.app/dashboard/')
             return 'Owner verification unavailable; no workspace changed.'
         if not owner:self.connect_prompt(store,api,key,sender);return 'Unconnected sender directed to sign-in.'
-        _,target=owner;message=value.get('message',{});postback=value.get('postback',{})
+        _,target=owner
+        alerts=getattr(self.registry,'service_alerts',None)
+        if alerts:alerts.refresh(source,sender,stamp)
+        message=value.get('message',{});postback=value.get('postback',{})
         payload=message.get('quick_reply',{}).get('payload') or postback.get('payload') or ''
-        if payload=='RF_SETUP_TEMPLATE':self.send(store,api,key,sender,'Copy this template, fill it in and send it back:\n\n'+TEMPLATE);return 'Campaign template sent.'
+        if payload=='RF_SETUP_TEMPLATE':
+            self.send(store,api,key+':example',sender,TEMPLATE_EXAMPLE)
+            self.send(store,api,key+':blank',sender,TEMPLATE)
+            return 'Campaign example and blank template sent.'
         for prefix,cancel in [('RF_SETUP_CONFIRM:',False),('RF_SETUP_CANCEL:',True)]:
             if payload.startswith(prefix):return self.confirmation(store,api,key,sender,target,payload[len(prefix):],cancel)
         text=str(message.get('text') or '')
+        if alerts and text.strip().casefold()=='alerts' and alerts.subscribe(source,sender,target,stamp,key):return 'Owner-verified service alerts subscribed.'
         if len(text)>3000:self.send(store,api,key,sender,'Keep the campaign template under 3,000 characters.');return 'Setup message too long.'
         if re.search(r'^\s*(Campaign|Name|Keyword|Link)\s*:',text,re.I|re.M):
             try:

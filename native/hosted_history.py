@@ -10,7 +10,7 @@ def page_number(value):
         raise ValueError('Invalid history page.')
     return value
 
-def summary(store):
+def local_summary(store):
     account=store.config['account_id']
     def count(sql):return store.execute(sql,(account,))[0]['n']
     return {'conversations':count("SELECT count(DISTINCT conversation_id) n FROM archive_records WHERE account_id=?"),
@@ -19,7 +19,7 @@ def summary(store):
         'reached':count('SELECT count(*) n FROM local_flow_contacts WHERE account_id=? AND (opened=1 OR link_sent=1)'),
         'accepted_actions':count("SELECT count(*) n FROM local_flow_actions WHERE account_id=? AND state='sent'")}
 
-def chats(store,data):
+def local_chats(store,data):
     page=page_number(data.get('page',0));account=store.config['account_id']
     search=data.get('search','')
     if not isinstance(search,str) or len(search)>100:raise ValueError('Use a shorter contact search.')
@@ -36,7 +36,7 @@ def chats(store,data):
             'username':str(name),'preview':message_text(payload)[:240],'latest_at':row['message_created_at']})
     return {'rows':result[page*30:page*30+30],'total':len(result),'page':page}
 
-def conversation(store,data):
+def local_conversation(store,data):
     page=page_number(data.get('page',0));identifier=data.get('conversation_id')
     if not isinstance(identifier,str) or not 1<=len(identifier)<=512:raise ValueError('Invalid conversation.')
     account=store.config['account_id'];args=(account,identifier)
@@ -47,4 +47,43 @@ def conversation(store,data):
         payload=json.loads(row['payload']);sender=payload.get('from') or {}
         messages.append({'text':message_text(payload) or '[Attachment]','created_at':row['message_created_at'],
             'outgoing':str(sender.get('id')) in own,'sender':sender.get('username') or sender.get('id') or 'Instagram contact'})
+    return {'messages':messages,'total':total,'page':page,'conversation_id':identifier}
+
+
+def cloud(store):
+    try:from .neon_http import NeonHTTP
+    except ImportError:from neon_http import NeonHTTP
+    return NeonHTTP(store.env_file)
+
+def is_cloud(store):
+    try:from .storage import backend_name
+    except ImportError:from storage import backend_name
+    return backend_name(store.env_file)=='neon'
+
+def summary(store):
+    if not is_cloud(store):return local_summary(store)
+    with cloud(store) as db:return db.query('hosted_summary',[store.config['account_id']])[0]
+
+def chats(store,data):
+    if not is_cloud(store):return local_chats(store,data)
+    page=page_number(data.get('page',0));search=data.get('search','')
+    if not isinstance(search,str) or len(search)>100:raise ValueError('Use a shorter contact search.')
+    account=str(store.config['account_id']);own=[account,*map(str,store.config.get('account_aliases',[]))];args=[account,own,search]
+    with cloud(store) as db:
+        total=db.query('hosted_chats_total',args)[0]['total'];records=db.query('hosted_chats_rows',[*args,page*30])
+    rows=[]
+    for record in records:
+        person=record.get('person') or {};rows.append({'conversation_id':record['conversation_id'],'recipient_id':str(person.get('id') or ''),'username':str(person.get('username') or person.get('id') or 'Instagram contact'),'preview':message_text(record['payload'])[:240],'latest_at':record['message_created_at']})
+    return {'rows':rows,'total':total,'page':page}
+
+def conversation(store,data):
+    if not is_cloud(store):return local_conversation(store,data)
+    page=page_number(data.get('page',0));identifier=data.get('conversation_id')
+    if not isinstance(identifier,str) or not 1<=len(identifier)<=512:raise ValueError('Invalid conversation.')
+    account=str(store.config['account_id']);own={account,*map(str,store.config.get('account_aliases',[]))}
+    with cloud(store) as db:
+        total=db.query('hosted_conversation_total',[account,identifier])[0]['total'];records=db.query('hosted_conversation_rows',[account,identifier,page*30])
+    messages=[]
+    for row in reversed(records):
+        payload=row['payload'];sender=payload.get('from') or {};messages.append({'text':message_text(payload) or '[Attachment]','created_at':row['message_created_at'],'outgoing':str(sender.get('id')) in own,'sender':sender.get('username') or sender.get('id') or 'Instagram contact'})
     return {'messages':messages,'total':total,'page':page,'conversation_id':identifier}

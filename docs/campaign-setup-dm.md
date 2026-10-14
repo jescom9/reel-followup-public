@@ -4,15 +4,19 @@ The Pi handles incoming messages to the professional Instagram account selected 
 
 For the managed installation, message [@reelfollowup](https://ig.me/m/reelfollowup), tap **Send template**, fill in the template and send it back. Review the campaign details and tap **Confirm campaign** within 15 minutes. The account must already be connected; unconnected senders receive the `REEL_CAMPAIGN_SETUP_SIGNUP_URL` link.
 
+The button sends two separate plain messages: a filled example without a clickable demo URL, followed by a blank copyable template:
+
 ```text
 Campaign:
-Name: My campaign
-Keyword: MYKEYWORD
-Link: https://example.com/
+Name:
+Keyword:
+Link:
 Follow required: yes
-Message: Here’s your link 👇
-Button: Open link
+Message:
+Button:
 ```
+
+Paste your full HTTPS link into the blank template and send it back. The actual destination is shown once during confirmation, so you can verify it before saving.
 
 One keyword per template, all Reels, following required by default. Follow-ups and public reminders start off. Confirmation creates an enabled flow; a paused account stays paused. The Flows page exposes **Set up by DM** only while the configured inbox is connected and enabled.
 

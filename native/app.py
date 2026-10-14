@@ -17,6 +17,7 @@ try:
     from .webhook_queue import queued_event
     from .neon_http import NeonHTTP
     from .storage import backend_name,delivery_mode
+    from .local_storage import LocalStorage
     from .token_vault import TokenVault
     from .public_replies import PublicReplies
 except ImportError:
@@ -29,6 +30,7 @@ except ImportError:
     from webhook_queue import queued_event
     from neon_http import NeonHTTP
     from storage import backend_name,delivery_mode
+    from local_storage import LocalStorage
     from token_vault import TokenVault
     from public_replies import PublicReplies
 
@@ -228,14 +230,22 @@ class Store:
             if not claim.get('claimed'):
                 if claim.get('state')=='sent': return claim['receipt']
                 raise MetaError('This flow send is already claimed or needs review; it was not sent again.')
+            if backend_name(self.env_file)=='neon':
+                with LocalStorage(self.folder) as local:local.request({'flow_action_claim':identity})
             try:
                 receipt=callback()
                 if not (receipt.get('message_id') or receipt.get('id')): raise MetaError('No message receipt returned; inspect delivery before retrying.')
             except Exception as error:
                 state='rejected' if isinstance(error,MetaError) and error.code is not None else 'review'
                 db.request({'flow_action_finish':{**identity,'state':state}})
+                if backend_name(self.env_file)=='neon':
+                    with LocalStorage(self.folder) as local:local.request({'flow_action_finish':{**identity,'state':state}})
                 raise
             db.request({'flow_action_finish':{**identity,'state':'sent','receipt':receipt}})
+            if backend_name(self.env_file)=='neon':
+                with LocalStorage(self.folder) as local:
+                    local.request({'flow_action_claim':identity})
+                    local.request({'flow_action_finish':{**identity,'state':'sent','receipt':receipt}})
             return receipt
     def flow_contact_get(self,sender):
         with NeonBridge(self.env_file,self.folder) as db:
@@ -367,7 +377,7 @@ class App:
             c=dict(self.store.config)
             if delivery_mode(self.store.env_file)!='neon':
                 try:
-                    with NeonBridge(self.store.env_file,self.store.folder) as db:stats=db.request({'webhook_stats':True,'ig_account_id':c['account_id']})['stats']
+                    with LocalStorage(self.store.folder) as db:stats=db.request({'webhook_stats':True,'ig_account_id':c['account_id']})['stats']
                     self.webhook_status={'state':'ready','detail':'Direct signed webhooks are stored on this host.','stats':stats,'url':self.webhook_url}
                 except Exception:self.webhook_status={'state':'error','detail':'Local webhook storage unavailable.','stats':{},'url':self.webhook_url}
                 self.stop.wait(5);continue
@@ -401,7 +411,7 @@ class App:
     def dashboard_worker(self):
         while not self.stop.is_set():
             if self.store.config['verified'] or backend_name(self.store.env_file)=='sqlite': self.refresh_dashboard()
-            self.stop.wait(30)
+            self.stop.wait(3600 if backend_name(self.store.env_file)=='neon' else 30)
     def start_followup(self, retry_rejected=False):
         c = dict(self.store.config)
         if not c['verified']: raise ValueError('Verify your Instagram account before sending follow-ups.')
@@ -611,7 +621,7 @@ class App:
             c = self.store.config
             if c['verified'] and c['access_token'] and time.monotonic() >= next_sync:
                 self.start_archive_sync()
-                next_sync = time.monotonic() + 900
+                next_sync = time.monotonic() + (3600 if backend_name(self.store.env_file)=='neon' else 900)
             self.stop.wait(2 if not c['verified'] else 15)
     def public_config(self):
         return {**{k:v for k,v in self.store.config.items() if k not in ('access_token', 'app_secret')},'flows':flows(self.store.config)}

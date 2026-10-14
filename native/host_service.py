@@ -4,12 +4,14 @@ from pathlib import Path
 from contextlib import closing
 try:
     from .profiles import read_values
+    from .admin_portal import AdminPortal
     from .workflows import flows,validate_flows
     from .webhook_queue import queued_event
     from . import hosted_history,hosted_metrics,hosted_activity,hosted_media,plans
     from .storage import StorageBridge,backend_name
 except ImportError:
     from profiles import read_values
+    from admin_portal import AdminPortal
     from workflows import flows,validate_flows
     from webhook_queue import queued_event
     import hosted_history,hosted_metrics,hosted_activity,hosted_media,plans
@@ -18,6 +20,7 @@ except ImportError:
 class HostService:
     def __init__(self,registry,clock=time.time):
         self.registry,self.clock=registry,clock
+        self.admin=AdminPortal(registry,clock)
         self.folder=registry.project/'native/.local';self.path=self.folder/'host-requests.sqlite'
         with closing(sqlite3.connect(self.path)) as db:
             db.execute('CREATE TABLE IF NOT EXISTS requests (nonce TEXT PRIMARY KEY,created REAL NOT NULL)');db.commit()
@@ -41,7 +44,7 @@ class HostService:
         ids={v.strip() for v in self.values().get('REEL_RESERVED_ACCOUNT_IDS','').split(',') if v.strip()}
         return bool(ids.intersection({str(config.get('account_id','')),*map(str,config.get('account_aliases',[]))}))
     def handle(self,path,data):
-        if path=='/host/health':return {'ready':True,'storage':'encrypted-sqlite','accounts':len(self.registry.apps)}
+        if path=='/host/health':return {'ready':True,'storage':'neon' if any(backend_name(a.store.env_file)=='neon' for a in self.registry.apps.values()) else 'sqlite','accounts':len(self.registry.apps)}
         if path=='/host/connect':return self.registry.connect_hosted(data)
         found=self.registry.find_account(str(data.get('account_id') or ''))
         if path=='/host/events':
@@ -57,7 +60,13 @@ class HostService:
         identifier,app=found
         with app.lifecycle:
             if self.registry.find_account(str(data.get('account_id') or ''))!=found:raise ValueError('Account is no longer connected.')
-            return self.portal(identifier,app,data)
+            if str(data.get('operation','')).startswith('admin.'):
+                issued=data.get('session_issued_at')
+                if issued is not None and issued<app.store.config.get('session_not_before',0):raise ValueError('Sign in again to open this workspace.')
+                if app.stop.is_set():raise ValueError('This workspace is unavailable.')
+                if not self.admin.allowed(app.store.config):raise ValueError('Administrator access is required.')
+            else:return self.portal(identifier,app,data)
+        return self.admin.handle(app,data['operation'],data.get('data') or {})
     def portal(self,identifier,app,data):
         config=dict(app.store.config);op=data.get('operation');value=data.get('data') or {}
         if data.get('session_issued_at') is not None and data['session_issued_at']<config.get('session_not_before',0):raise ValueError('Sign in again to open this workspace.')
@@ -69,8 +78,8 @@ class HostService:
             history=None
             if backend_name(app.store.env_file)=='sqlite':
                 with StorageBridge(app.store.env_file,app.store.folder):pass
-                history=hosted_history.summary(app.store)
-            return {'plan':plan,'campaign_setup_ready':self.registry.campaign_setup.ready(),'username':config['username'],'account_id':config['account_id'],'enabled':config['enabled'],'flows':flows(config),
+            history=hosted_history.summary(app.store)
+            return {'plan':plan,'is_admin':self.admin.allowed(config),'campaign_setup_ready':self.registry.campaign_setup.ready(),'username':config['username'],'account_id':config['account_id'],'enabled':config['enabled'],'flows':flows(config),
                 'metrics':hosted_metrics.summary(app.store,flows(config),include_legacy=history is not None),'history':history,'reserved':self.reserved(config),'credentials':{'stored':bool(app.store.vault.get()),'expires_at':config.get('token_expires_at',0)}}
         if op in ('history.preview','history.start','history.pause','history.status'):
             queue=app.engine.historical
@@ -90,7 +99,6 @@ class HostService:
             result['historical_runs']=app.engine.historical.status(config)
             return result
         if op in ('archive.list','archive.conversation'):
-            if backend_name(app.store.env_file)!='sqlite':raise ValueError('This archive is available in the private Pi dashboard. Contact the host to enable it here.')
             with StorageBridge(app.store.env_file,app.store.folder):pass
             return hosted_history.chats(app.store,value) if op=='archive.list' else hosted_history.conversation(app.store,value)
         if op=='account.toggle':
