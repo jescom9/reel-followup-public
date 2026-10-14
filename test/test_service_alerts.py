@@ -7,6 +7,7 @@ class AlertTests(unittest.TestCase):
     def prepare(self):
         with (self.root/'.env').open('a') as f:f.write('REEL_ALERT_USERNAME=creator\n')
         self.registry.service_alerts=ServiceAlerts(self.registry,lambda:self.now)
+        self.source.store.once=self.source.store.flow_once
         original=self.registry.find_account
         self.registry.find_account=lambda aid:('source',self.source) if aid=='900' else original(aid)
         listing=self.registry.listing
@@ -18,6 +19,12 @@ class AlertTests(unittest.TestCase):
         self.registry.service_alerts.check(report);self.assertEqual(len(self.registry.sent),count)
         self.assertIn('Disk pressure',self.registry.sent[-1]['message']['text'])
         self.now+=86401;self.registry.service_alerts.check({'capacity':{'alerts':['New failure']}});self.assertEqual(len(self.registry.sent),count)
+    def test_operational_alert_can_send_when_cloud_claims_are_unavailable(self):
+        self.prepare();self.message('alerts')
+        def failed(*args):raise RuntimeError('Neon unavailable')
+        self.source.store.flow_once=failed
+        self.registry.service_alerts.check({'capacity':{'alerts':['Neon unavailable']}})
+        self.assertIn('Neon unavailable',self.registry.sent[-1]['message']['text'])
     def test_unrelated_owner_cannot_subscribe_to_operator_alerts(self):
         self.prepare();self.registry.senders['stranger']={'id':'stranger','username':'other'};self.message('alerts',sender='stranger')
         self.assertEqual(self.source.store.execute('SELECT * FROM service_alert_subscription'),[])

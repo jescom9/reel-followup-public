@@ -33,6 +33,11 @@ class ServiceAlerts:
                 key='ops:check:'+row['sender_id']+':'+signature+':'+str(int(row['last_sent']))
                 # The durable claim prevents an uncertain send from being repeated.
                 try:
-                    source.store.flow_once(key,lambda:self.registry.graph(dict(source.store.config)).send({'id':row['sender_id']},text))
+                    # Preserve any prior cloud-mode outcome before moving operational
+                    # alerts to local claims. Customer campaigns still require Neon.
+                    if source.store.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='local_flow_actions'"):
+                        old=source.store.execute('SELECT state,receipt FROM local_flow_actions WHERE account_id=? AND action_id=?',(source.store.config['account_id'],key))
+                        if old:source.store.execute('INSERT OR IGNORE INTO actions(id,state,receipt) VALUES(?,?,?)',(key,'sent' if old[0]['state']=='sent' else 'review',old[0]['receipt']))
+                    source.store.once(key,lambda:self.registry.graph(dict(source.store.config)).send({'id':row['sender_id']},text))
                     source.store.execute('UPDATE service_alert_subscription SET last_signature=?,last_sent=? WHERE sender_id=?',(signature,self.clock(),row['sender_id']))
                 except Exception:pass

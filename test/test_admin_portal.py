@@ -48,6 +48,26 @@ class AdminTests(unittest.TestCase):
             result=hosted_history.conversation(target.store,{'account_id':'900','conversation_id':'thread','page':2})
             self.assertEqual(result['messages'][0]['text'],'cloud message');self.assertTrue(all(args[0]=='123' for _,args in queries));self.assertEqual(queries[-1][1][-1],60)
             with self.assertRaises(ValueError):hosted_history.conversation(target.store,{'conversation_id':'thread','page':True})
+    def test_operational_claims_preserve_old_cloud_outcomes_and_survive_cloud_failure(self):
+        import hashlib,time
+        actor,target=self.admin();actor.store.save({**actor.store.config,'username':'reelfollowup','enabled':True})
+        with (self.root/'.env').open('a') as f:f.write('REEL_CAMPAIGN_SETUP_USERNAME=reelfollowup\nREEL_ALERT_USERNAME=creator\n')
+        alerts=self.registry.service_alerts;alerts.initialize(actor.store)
+        actor.store.execute('INSERT INTO service_alert_subscription(sender_id,target_id,inbound_at) VALUES(?,?,?)',('owner','123',time.time()))
+        sent=[]
+        class Sender:
+            def send(self,recipient,text):sent.append(text);return {'message_id':'accepted'}
+        self.registry.graph=lambda c:Sender()
+        actor.store.flow_once=lambda *args:(_ for _ in ()).throw(RuntimeError('Neon unavailable'))
+        items=['Neon unavailable'];signature=hashlib.sha256(json.dumps(sorted(items)).encode()).hexdigest();key='ops:check:owner:'+signature+':0'
+        with StorageBridge(actor.store.env_file,actor.store.folder) as local:
+            local.request({'flow_action_claim':{'ig_account_id':'900','action_id':key}})
+            local.request({'flow_action_finish':{'ig_account_id':'900','action_id':key,'state':'sent','receipt':{'message_id':'already-sent'}}})
+        alerts.check({'capacity':{'alerts':items}});self.assertEqual(sent,[])
+        self.assertEqual(actor.store.execute('SELECT state FROM actions WHERE id=?',(key,))[0]['state'],'sent')
+        actor.store.execute('UPDATE service_alert_subscription SET last_sent=0')
+        alerts.check({'capacity':{'alerts':['New availability issue']}});self.assertEqual(len(sent),1)
+
     def test_resource_operation_does_not_require_a_target_account(self):
         self.admin();self.registry.resources.report=MagicMock(return_value={'checked_at':1})
         self.assertEqual(self.call('900','admin.resources'),{'checked_at':1})
