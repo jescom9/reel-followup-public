@@ -20,6 +20,24 @@ class HostTests(unittest.TestCase):
         self.tmp.cleanup()
     def connect(self,id):
         return self.host.handle('/host/connect',{'app_id':'456','account_id':id,'access_token':id+'-private-token','expires_at':2000000000})
+    def test_configured_setup_inbox_is_enabled_but_customer_accounts_still_start_paused(self):
+        with (self.root/'.env').open('a') as f:f.write('REEL_CAMPAIGN_SETUP_USERNAME=reelfollowup\n')
+        class SetupMeta(MetaFixture):
+            def call(self,method,path,data=None,**query):
+                if method=='POST':return {'message_id':'accepted'} if path.endswith('/messages') else {'success':True}
+                if path!='me':return {'id':path,'username':'creator'}
+                aid=self.c['access_token'].split('-')[0]
+                return {'user_id':aid,'id':aid,'username':'reelfollowup' if aid=='900' else 'creator'}
+        self.registry.graph=SetupMeta
+        customer=self.connect('123');self.assertFalse(customer['enabled'])
+        inbox=self.connect('900');self.assertTrue(inbox['enabled'])
+        status=self.host.handle('/host/portal',{'account_id':'123','operation':'status'})
+        self.assertTrue(status['campaign_setup_ready'])
+        app=self.registry.get(inbox['profile_id'])
+        detail=app.engine.process('setup-menu',{'kind':'message','value':{'sender':{'id':'777'},'timestamp':(time.time()-1)*1000,'message':{'text':'hi'}}},dict(app.store.config))
+        self.assertEqual(detail,'Campaign setup menu sent.')
+        self.assertFalse(self.registry.get(customer['profile_id']).store.config['enabled'])
+
     def test_signed_enrollment_and_replay_protection(self):
         path='/host/connect';raw=b'{"account_id":"123"}';stamp=str(int(time.time()));nonce='a'*32
         text='\n'.join(['reel-pi-v1',stamp,nonce,'POST',path,hashlib.sha256(raw).hexdigest()])

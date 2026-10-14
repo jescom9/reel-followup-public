@@ -247,6 +247,7 @@ class Store:
 class Engine:
     def __init__(self, store, graph_factory=Graph, clock=time.time):
         self.s,self.factory,self.clock=store,graph_factory,clock
+        self.setup_handler=None
         self.manychat=ManychatFlow(store,graph_factory,clock)
         self.checks=FollowerChecks(store,graph_factory,self.manychat.send_verified_link,clock)
         self.manychat.checks=self.checks
@@ -281,6 +282,9 @@ class Engine:
             except Exception: pass  # The local event and global send claims are already durable.
         return True
     def process(self, key, event, c):
+        if self.setup_handler:
+            result=self.setup_handler(key,event,c)
+            if result is not None:return result
         if c.get('workflow_mode')=='manychat': return self.workflows.process(key,event,c)
         api = self.factory(c); v = event['value']; now = self.clock()
         if event['kind'] == 'comment':

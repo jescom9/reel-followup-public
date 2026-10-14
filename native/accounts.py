@@ -6,17 +6,21 @@ import shutil
 from pathlib import Path
 try:
     from .profiles import Profiles,read_values
+    from .campaign_setup import CampaignSetup
 except ImportError:
     from profiles import Profiles,read_values
+    from campaign_setup import CampaignSetup
 
 class AccountRegistry:
     def __init__(self,project,app_factory,graph_factory,defaults):
         self.project=Path(project);self.profiles=Profiles(project,defaults)
         self.factory,self.graph=app_factory,graph_factory
         self.apps={};self.lock=threading.RLock();self.running=False
+        self.campaign_setup=CampaignSetup(self)
         for row in self.profiles.listing():self.load(row['profile_id'])
     def load(self,identifier):
         env,data=self.profiles.location(identifier);app=self.factory(data,env)
+        app.engine.setup_handler=lambda key,event,config,app=app:self.campaign_setup.process(app,key,event,config)
         app.engine.workflows.reply_resolver=lambda selected,app=app:self.reply_sender(selected,app)
         self.apps[identifier]=app
         if self.running:self.start_app(app)
@@ -69,6 +73,8 @@ class AccountRegistry:
                 identifier=self.profiles.create({'access_token':token,'app_id':root['app_id'],'expires_at':expiry},profile)
                 app=self.load(identifier)
                 app.store.save({**app.store.config,'token_expires_at':expiry,'webhook_verified':True,'session_not_before':int(time.time())})
+            if self.campaign_setup.enabled(app.store.config):
+                app.store.save({**app.store.config,'enabled':True})
             return {'profile_id':identifier,'account_id':str(profile['user_id']),'username':profile['username'],'stored':True,'enabled':app.store.config['enabled']}
     def delete_hosted(self,identifier,username):
         with self.lock:

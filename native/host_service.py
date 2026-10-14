@@ -70,7 +70,7 @@ class HostService:
             if backend_name(app.store.env_file)=='sqlite':
                 with StorageBridge(app.store.env_file,app.store.folder):pass
                 history=hosted_history.summary(app.store)
-            return {'plan':plan,'username':config['username'],'account_id':config['account_id'],'enabled':config['enabled'],'flows':flows(config),
+            return {'plan':plan,'campaign_setup_ready':self.registry.campaign_setup.ready(),'username':config['username'],'account_id':config['account_id'],'enabled':config['enabled'],'flows':flows(config),
                 'metrics':hosted_metrics.summary(app.store,flows(config),include_legacy=history is not None),'history':history,'reserved':self.reserved(config),'credentials':{'stored':bool(app.store.vault.get()),'expires_at':config.get('token_expires_at',0)}}
         if op in ('history.preview','history.start','history.pause','history.status'):
             queue=app.engine.historical

@@ -8,3 +8,5 @@ test('Pi transport sends credentials in authenticated HTTPS body with no redirec
  let call;await piRequest('/host/connect',{access_token:'private-test-token',account_id:'123'},{config:{url:new URL('https://pi.example/'),secret:'s'.repeat(40)},fetchImpl:async(url,options)=>{call={url,options};return Response.json({stored:true});}});
  assert.equal(call.url.href,'https://pi.example/host/connect');assert.ok(!call.url.href.includes('private-test-token'));assert.equal(call.options.redirect,'error');assert.match(call.options.headers['X-Reel-Signature'],/^[a-f0-9]{64}$/);assert.equal(JSON.parse(call.options.body).access_token,'private-test-token');
 });
+
+test('Pi failures distinguish temporary outages from rejected account operations',async()=>{for(const status of [400,503]){await assert.rejects(()=>piRequest('/host/portal',{account_id:'123',operation:'status'},{config:{url:new URL('https://pi.example/'),secret:'s'.repeat(40)},fetchImpl:async()=>Response.json({error:'Fixture error'},{status})}),e=>e.retryable===(status>=500)&&e.userMessage==='Fixture error');}});

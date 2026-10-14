@@ -61,3 +61,7 @@ python3 scripts/public-replies.py --account PROFILE_ID pause BATCH_ID
 ```
 
 The sender must own the media and have an enabled, verified workspace. Each target is checked live for the keyword and an existing identical reply. Use `--skip COMMENT_ID` for a confirmed prior reply, or `--dedupe-text 'Previously approved text'` to recognize an earlier version. Targets are paced at least 30 seconds apart. Meta rejection, unavailable reads, missing receipts and interrupted sends pause the batch for inspection; uncertain sends are never automatically repeated. No client connection is needed while it runs. These are public comments; the separate DM reply window does not determine public batch eligibility.
+
+## Optional campaign setup inbox
+
+The Pi can receive owner-verified campaign requests through an operator Instagram inbox. See [campaign setup by DM](campaign-setup-dm.md). `REEL_CAMPAIGN_SETUP_USERNAME` is empty by default; enable it only for the professional account intended to handle setup requests.
